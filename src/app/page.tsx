@@ -3,6 +3,7 @@ import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
+/** 展示开发首页及当前运行模式。 */
 export default function Home() {
   const env = getEnv();
 

@@ -5,16 +5,19 @@ generator client {
 datasource db {
   provider = "sqlite"
 }
+/// 登录与支付渠道。
 enum Provider {
   wechat
   alipay
 }
+/// 订单状态，支付成功后不允许回退。
 enum OrderStatus {
   pending
   paid
   failed
   closed
 }
+/// 本地用户资料。
 model User {
   id String @id @default(cuid())
   nickname String
@@ -25,6 +28,7 @@ model User {
   sessions Session[]
   orders Order[]
 }
+/// 关联平台身份，同一渠道用户只对应一个本地身份。
 model AuthIdentity {
   id String @id @default(cuid())
   userId String
@@ -34,6 +38,7 @@ model AuthIdentity {
   unionId String?
   @@unique([provider, providerUserId])
 }
+/// 保存会话令牌哈希与有效期，不保存明文令牌。
 model Session {
   id String @id @default(cuid())
   tokenHash String @unique
@@ -42,6 +47,7 @@ model Session {
   expiresAt DateTime
   @@index([userId])
 }
+/// 绑定浏览器的一次性授权状态，防止伪造与重放。
 model OAuthState {
   id String @id @default(cuid())
   stateHash String @unique
@@ -50,12 +56,14 @@ model OAuthState {
   expiresAt DateTime
   consumedAt DateTime?
 }
+/// 保存服务端确定的金额和支付状态。
 model Order {
   id String @id @default(cuid())
   outTradeNo String @unique
   userId String
   user User @relation(fields: [userId], references: [id])
   provider Provider
+  /// 金额单位为分，禁止浮点金额。
   amountFen Int
   currency String @default("CNY")
   status OrderStatus @default(pending)
@@ -67,6 +75,7 @@ model Order {
   @@index([userId, createdAt])
   @@unique([provider, providerTradeNo])
 }
+/// 记录通知处理结果，用唯一标识保证幂等。
 model PaymentNotification {
   id String @id @default(cuid())
   provider Provider

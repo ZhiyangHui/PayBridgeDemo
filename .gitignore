@@ -24,6 +24,8 @@ node_modules/
 
 # 本地开发规划，文件保留但不提交
 /docs/development-plan.md
+/docs/requirements.md
+/docs/requirements-analysis.md
 /docs/architecture.md
 /docs/project-structure.md
 

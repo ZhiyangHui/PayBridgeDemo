@@ -5,9 +5,11 @@ import { databaseUrl } from "../src/server/db/url";
 import { closeSync, openSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
+import { validateCredentials } from "../src/server/config/credentials";
 import { parseEnv } from "../src/server/config/env";
 if (!existsSync(".env.local") && !process.env.PAYMENT_MODE) throw new Error("请先复制 .env.example 为 .env.local");
 loadEnvConfig(process.cwd());
+// 示例会话密钥仅在模拟模式下替换，真实模式必须显式配置。
 if (process.env.PAYMENT_MODE === "mock" && process.env.SESSION_SECRET?.startsWith("replace-")) {
   mkdirSync(".local", { recursive: true });
   const file = ".local/session-secret";
@@ -17,9 +19,11 @@ if (process.env.PAYMENT_MODE === "mock" && process.env.SESSION_SECRET?.startsWit
   writeFileSync(".env.local", env.replace(/^SESSION_SECRET=.*$/m, `SESSION_SECRET=${secret}`), { mode: 0o600 });
   process.env.SESSION_SECRET = secret;
 }
+validateCredentials(process.env);
 const config = parseEnv(process.env);
 const dbPath = databaseUrl(config.DATABASE_URL).slice(5);
 mkdirSync(path.dirname(dbPath), { recursive: true });
+// Prisma 首次迁移需要 SQLite 文件存在，追加打开不会清空已有数据。
 closeSync(openSync(dbPath, "a"));
 for (const args of [["generate"], ["migrate", "deploy"]]) {
   execFileSync(process.execPath, ["node_modules/prisma/build/index.js", ...args], { stdio: "inherit" });

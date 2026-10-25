@@ -2,7 +2,7 @@
 
 用 Next.js 做微信、支付宝登录和支付，按试做任务 PDF 开发。
 
-目前已搭好框架、数据库和检查工具。首页能打开，登录和支付还没接入。
+目前已搭好框架、数据库和检查工具，补齐配置校验、错误响应及请求超时保护。首页能打开，登录和支付还没接入。
 
 ## 启动
 
@@ -21,7 +21,7 @@ npm run dev
 ```bash
 npm run lint        # 代码检查
 npm run typecheck   # 类型检查
-npm test            # 当前覆盖环境配置，支付测试随功能补充
+npm test            # 配置、错误处理和请求保护测试
 npm run build       # 生产构建
 npm run db:migrate  # 修改数据模型后创建迁移
 npm run db:studio   # 查看数据库
