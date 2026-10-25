@@ -1,0 +1,55 @@
+{
+  "name": "paybridge-demo",
+  "version": "0.1.0",
+  "description": "用 Next.js 做一个微信、支付宝登录和支付的小项目，按试做任务 PDF 的要求开发。",
+  "scripts": {
+    "predev": "tsx scripts/prepare-dev.ts",
+    "dev": "next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "prisma generate && next typegen && tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio"
+  },
+  "type": "module",
+  "dependencies": {
+    "@next/env": "^16.4.3",
+    "@prisma/adapter-better-sqlite3": "^7.10.1",
+    "@prisma/client": "^7.10.1",
+    "alipay-sdk": "^4.14.0",
+    "next": "^16.4.3",
+    "qrcode": "^1.5.4",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.4.3",
+    "prisma": "^7.10.1",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.5"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "allowScripts": {
+    "@prisma/engines@7.10.1": true,
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.2": true,
+    "prisma@7.10.1": true,
+    "unrs-resolver@1.12.2": true
+  },
+  "license": "MIT"
+}

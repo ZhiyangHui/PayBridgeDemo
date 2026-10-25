@@ -1,0 +1,15 @@
+.page { max-width: 48rem; margin: 0 auto; padding: 5rem var(--space-6); }
+.mode { display: inline-block; border-radius: 999px; padding: var(--space-1) var(--space-3); background: var(--color-warning-bg); color: var(--color-warning-text); font-size: 0.875rem; }
+.title { margin-top: var(--space-6); font-size: 2.25rem; font-weight: 600; letter-spacing: -0.025em; line-height: 1.15; }
+.subtitle { margin-top: var(--space-4); color: var(--color-muted); }
+.card { margin-top: var(--space-10); border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); padding: 1.75rem; }
+.cardTitle { font-size: 1.25rem; font-weight: 600; }
+.description { margin-top: var(--space-3); color: var(--color-muted); line-height: 1.75; }
+.actions { display: flex; flex-wrap: wrap; gap: var(--space-3); margin-top: var(--space-6); }
+.loginButton { border-radius: var(--radius-control); background: var(--color-subtle); padding: var(--space-3) 1.25rem; color: #64748b; }
+.loginButton:disabled { cursor: not-allowed; }
+@media (max-width: 480px) {
+  .page { padding: 3rem var(--space-4); }
+  .card { padding: var(--space-6); }
+  .actions { flex-direction: column; }
+}

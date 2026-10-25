@@ -1,0 +1,43 @@
+# 安装依赖和构建产物，由本地命令生成
+node_modules/
+/.next/
+/out/
+/coverage/
+/src/generated/
+/next-env.d.ts
+*.tsbuildinfo
+
+# 环境配置含密钥；只提交根目录的示例文件
+.env*
+!/.env.example
+
+# 支付证书和私钥，不进入版本历史
+/certs/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# 本地规范、模拟密钥和开发指引
+/.local/
+/AGENTS.md
+
+# 本地开发规划，文件保留但不提交
+/docs/development-plan.md
+/docs/architecture.md
+/docs/project-structure.md
+
+# SQLite 数据及事务临时文件；保留 prisma/schema.prisma 和 migrations
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# 运行日志和系统临时文件
+*.log
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

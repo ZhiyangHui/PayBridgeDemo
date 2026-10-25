@@ -1,0 +1,79 @@
+generator client {
+  provider = "prisma-client"
+  output = "../src/generated/prisma"
+}
+datasource db {
+  provider = "sqlite"
+}
+enum Provider {
+  wechat
+  alipay
+}
+enum OrderStatus {
+  pending
+  paid
+  failed
+  closed
+}
+model User {
+  id String @id @default(cuid())
+  nickname String
+  avatar String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  identities AuthIdentity[]
+  sessions Session[]
+  orders Order[]
+}
+model AuthIdentity {
+  id String @id @default(cuid())
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider Provider
+  providerUserId String
+  unionId String?
+  @@unique([provider, providerUserId])
+}
+model Session {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  @@index([userId])
+}
+model OAuthState {
+  id String @id @default(cuid())
+  stateHash String @unique
+  browserHash String
+  provider Provider
+  expiresAt DateTime
+  consumedAt DateTime?
+}
+model Order {
+  id String @id @default(cuid())
+  outTradeNo String @unique
+  userId String
+  user User @relation(fields: [userId], references: [id])
+  provider Provider
+  amountFen Int
+  currency String @default("CNY")
+  status OrderStatus @default(pending)
+  providerTradeNo String?
+  paidAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  notifications PaymentNotification[]
+  @@index([userId, createdAt])
+  @@unique([provider, providerTradeNo])
+}
+model PaymentNotification {
+  id String @id @default(cuid())
+  provider Provider
+  dedupeKey String
+  orderId String
+  order Order @relation(fields: [orderId], references: [id])
+  result String
+  createdAt DateTime @default(now())
+  @@unique([provider, dedupeKey])
+}
