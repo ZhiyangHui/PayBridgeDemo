@@ -13,6 +13,7 @@ const sandbox = {
   ...base,
   PAYMENT_MODE: "sandbox",
   ALIPAY_APP_ID: "123",
+  ALIPAY_SELLER_ID: "2088000000000001",
   ALIPAY_PRIVATE_KEY: "invalid",
   ALIPAY_PUBLIC_KEY: "invalid",
   ALIPAY_GATEWAY: "https://openapi-sandbox.dl.alipaydev.com/gateway.do",
@@ -64,4 +65,12 @@ describe("运行模式配置", () => {
       }),
     ).not.toThrow();
   });
+});
+
+it("沙箱支付允许独立使用模拟登录，正式模式禁止", () => {
+  expect(parseEnv({ ...sandbox, ALIPAY_LOGIN_MODE: "mock" }).ALIPAY_LOGIN_MODE).toBe("mock");
+  expect(parseEnv({ ...base, ALIPAY_LOGIN_MODE: "" }).ALIPAY_LOGIN_MODE).toBe("mock");
+  expect(() => parseEnv({ ...sandbox, PAYMENT_MODE: "live", ALIPAY_LOGIN_MODE: "mock" })).toThrow(
+    "ALIPAY_LOGIN_MODE",
+  );
 });

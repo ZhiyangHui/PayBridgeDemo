@@ -21,9 +21,9 @@ export default async function Home() {
           微信登录{env.WECHAT_MODE === "mock" ? "（模拟）" : ""}
         </a>
         <a className={styles.loginButton} href="/api/auth/alipay/start">
-          支付宝登录{env.PAYMENT_MODE === "mock" ? "（模拟）" : ""}
+          支付宝登录{env.ALIPAY_LOGIN_MODE === "mock" ? "（模拟）" : ""}
         </a>
-        {env.PAYMENT_MODE === "mock" && (
+        {env.PAYMENT_MODE !== "live" && env.ALIPAY_LOGIN_MODE === "mock" && (
           <a className={styles.loginButton} href="/api/auth/alipay/sandbox/start">
             支付宝登录（沙箱）
           </a>

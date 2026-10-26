@@ -12,11 +12,21 @@ import styles from "@/components/shop.module.css";
 export const dynamic = "force-dynamic";
 
 /** 仅列出当前用户的最近订单。 */
-export default async function Orders() {
+export default async function Orders({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>;
+}) {
   const session = await currentSession();
 
   if (!session) {
     redirect("/");
+  }
+
+  const returnedOrder = (await searchParams).order;
+
+  if (returnedOrder && /^[a-zA-Z0-9_-]{1,128}$/.test(returnedOrder)) {
+    redirect(`/orders/${returnedOrder}`);
   }
 
   const orders = await getDb().order.findMany({

@@ -1,3 +1,3 @@
 # 支付
 
-notification 验签与解密；mock-provider 生成平台格式的测试通知；handler 核对通知并交给订单模块记账；routes 处理请求。模拟按钮和公开 notify 入口共用处理器。测试密钥保存在忽略的 .local 中，真实支付尚未接入。
+alipay 对接沙箱收银台、通知和主动查单；notification 验签与解析；mode 决定各渠道的支付环境；routes 处理请求。mock-provider 和 handler 保留本地模拟支付，模拟签名不能用于沙箱订单。

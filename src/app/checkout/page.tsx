@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
-import { getEnv } from "@/server/config/env";
+import { paymentMode } from "@/server/payments/mode";
 import { TEST_ITEM } from "@/server/orders/service";
 import { formatMoney } from "@/server/orders/money";
 import { PageShell } from "@/components/PageShell";
@@ -23,18 +23,23 @@ export default async function Checkout({
     redirect("/");
   }
 
-  if (getEnv().PAYMENT_MODE !== "mock") {
+  const mode = paymentMode(session.provider);
+
+  if (mode === "live") {
     redirect("/dashboard");
   }
 
   const checkoutKey = randomUUID();
 
   return (
-    <PageShell mode="MOCK MODE">
+    <PageShell mode={mode === "mock" ? "MOCK MODE" : "ALIPAY SANDBOX"}>
       <AccountNav />
       <h1 className={styles.heading}>确认购买</h1>
       <p>{TEST_ITEM.name}</p>
       <p className={styles.price}>¥{formatMoney(TEST_ITEM.amountFen)}</p>
+      {mode === "sandbox" && (
+        <p className={styles.muted}>使用支付宝沙箱买家账号付款，不扣本站模拟余额。</p>
+      )}
       <FormMessage code={(await searchParams).error} />
       <div className={styles.row}>
         <form action={`/api/pay/${session.provider}/create`} method="post">

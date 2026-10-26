@@ -6,6 +6,10 @@ const schema = z.object({
   APP_URL: z.url().refine((value) => /^https?:\/\//.test(value)),
   DATABASE_URL: z.string().regex(/^file:.+/),
   PAYMENT_MODE: z.enum(["mock", "sandbox", "live"]),
+  ALIPAY_LOGIN_MODE: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.enum(["mock", "oauth"]).optional(),
+  ),
   WECHAT_MODE: z.enum(["mock", "live"]).default("mock"),
   SESSION_SECRET: z
     .string()
@@ -16,6 +20,7 @@ const schema = z.object({
 /** 仅列出真实接入需要的变量，不要求模拟模式提供真实凭据。 */
 const alipayFields = [
   "ALIPAY_APP_ID",
+  "ALIPAY_SELLER_ID",
   "ALIPAY_PRIVATE_KEY",
   "ALIPAY_PUBLIC_KEY",
   "ALIPAY_GATEWAY",
@@ -98,6 +103,14 @@ export function parseEnv(source: Record<string, string | undefined>) {
     }
   }
 
+  if (config.PAYMENT_MODE !== "mock" && !/^\d{16,32}$/.test(source.ALIPAY_SELLER_ID ?? "")) {
+    invalid.add("ALIPAY_SELLER_ID");
+  }
+
+  if (config.PAYMENT_MODE === "live" && config.ALIPAY_LOGIN_MODE === "mock") {
+    invalid.add("ALIPAY_LOGIN_MODE");
+  }
+
   if (wechatMode === "live") {
     if (Buffer.byteLength(source.WECHAT_PAY_API_V3_KEY ?? "", "utf8") !== 32) {
       invalid.add("WECHAT_PAY_API_V3_KEY");
@@ -112,7 +125,12 @@ export function parseEnv(source: Record<string, string | undefined>) {
     throw new AppError("CONFIG_ERROR", `环境配置有误：${[...invalid].join(", ")}`);
   }
 
-  return { ...config, WECHAT_MODE: wechatMode };
+  return {
+    ...config,
+    WECHAT_MODE: wechatMode,
+    ALIPAY_LOGIN_MODE:
+      config.ALIPAY_LOGIN_MODE ?? (config.PAYMENT_MODE === "mock" ? "mock" : "oauth"),
+  };
 }
 
 /** 读取服务端环境，禁止向页面传递原始密钥。 */

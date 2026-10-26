@@ -11,6 +11,8 @@ export const errorDefinitions = {
   INVALID_AMOUNT: [400, "金额应在 0–1000000 元之间，最多两位小数"],
   INSUFFICIENT_BALANCE: [409, "余额不足，请先调整模拟余额"],
   PAYMENT_CHANNEL_MISMATCH: [403, "请使用与登录账号一致的支付方式"],
+  PAYMENT_UNAVAILABLE: [503, "当前支付方式尚未接入"],
+  PAYMENT_PROVIDER_ERROR: [502, "支付平台暂时不可用，订单状态仍待确认，请稍后重试"],
   PAYMENT_INVALID: [400, "支付通知校验失败"],
   MOCK_ONLY: [403, "此操作仅支持模拟模式"],
   INVALID_INPUT: [400, "请求参数有误"],

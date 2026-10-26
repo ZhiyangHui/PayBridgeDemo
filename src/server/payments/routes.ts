@@ -10,20 +10,23 @@ import { createMockOrder, ownOrder, cancelMockOrder, setMockBalance } from "../o
 import { getMockPaymentKeys } from "./mock-keys";
 import { mockPaymentNotification } from "./mock-provider";
 import { handleMockNotification } from "./handler";
+import { paymentMode } from "./mode";
+import { createSandboxOrder } from "../orders/sandbox";
+import { alipayPaymentConfig, alipayCheckoutUrl, handleAlipayNotification } from "./alipay";
 import type { LoginProvider } from "../auth/types";
 
 /** 模拟资金操作只允许模拟模式下已登录的同源请求。 */
 async function requireMockSession(request: NextRequest) {
   requireSameOrigin(request);
 
-  if (getEnv().PAYMENT_MODE !== "mock") {
-    throw new AppError("MOCK_ONLY");
-  }
-
   const session = await currentSession();
 
   if (!session) {
     throw new AppError("UNAUTHENTICATED");
+  }
+
+  if (paymentMode(session.provider) !== "mock") {
+    throw new AppError("MOCK_ONLY");
   }
 
   return session;
@@ -38,16 +41,46 @@ function formFailure(cause: unknown, path: string) {
   return NextResponse.redirect(url, 303);
 }
 
-/** 先创建待支付订单，再跳转到模拟收银台。 */
+/** 先保存服务端订单，再按当前环境跳转模拟或支付宝沙箱收银台。 */
 export async function createPayment(request: NextRequest, provider: LoginProvider) {
   try {
-    const session = await requireMockSession(request);
+    requireSameOrigin(request);
+    const session = await currentSession();
+
+    if (!session) {
+      throw new AppError("UNAUTHENTICATED");
+    }
 
     if (provider !== session.provider) {
       throw new AppError("PAYMENT_CHANNEL_MISMATCH");
     }
 
     const form = await request.formData();
+    const mode = paymentMode(provider);
+
+    if (mode === "sandbox" && provider === "alipay") {
+      const config = alipayPaymentConfig();
+      const id = String(form.get("orderId") ?? "");
+      const order = id
+        ? await ownOrder(getDb(), session.user.id, id)
+        : await createSandboxOrder(
+            getDb(),
+            session.user.id,
+            String(form.get("checkoutKey") ?? ""),
+            config,
+          );
+
+      if (order.status !== "pending") {
+        return NextResponse.redirect(new URL(`/orders/${order.id}`, getEnv().APP_URL), 303);
+      }
+
+      return NextResponse.redirect(alipayCheckoutUrl(order, config), 303);
+    }
+
+    if (mode !== "mock") {
+      throw new AppError("PAYMENT_UNAVAILABLE");
+    }
+
     const order = await createMockOrder(
       getDb(),
       session.user.id,
@@ -110,9 +143,19 @@ export async function updateBalance(request: NextRequest) {
   }
 }
 
-/** 接收平台通知；当前仅开放模拟订单，真实支付接入后使用对应平台配置。 */
+/** 按服务端环境选验签配置，模拟签名不能用于沙箱订单。 */
 export async function receiveNotification(request: NextRequest, provider: LoginProvider) {
   try {
+    const mode = paymentMode(provider);
+
+    if (mode === "sandbox" && provider === "alipay") {
+      return await handleAlipayNotification(getDb(), request, alipayPaymentConfig());
+    }
+
+    if (mode !== "mock") {
+      throw new AppError("PAYMENT_UNAVAILABLE");
+    }
+
     return await handleMockNotification(getDb(), request, provider, getMockPaymentKeys());
   } catch (cause) {
     errorResponse(cause);

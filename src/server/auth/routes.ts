@@ -24,7 +24,7 @@ import type { LoginProfile, LoginProvider } from "./types";
 export function isMockLogin(provider: LoginProvider): boolean {
   const env = getEnv();
 
-  return provider === "wechat" ? env.WECHAT_MODE === "mock" : env.PAYMENT_MODE === "mock";
+  return provider === "wechat" ? env.WECHAT_MODE === "mock" : env.ALIPAY_LOGIN_MODE === "mock";
 }
 
 /** POST 操作只接受配置站点发起的请求，防止跨站授权确认或退出。 */
@@ -119,7 +119,7 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
       }
 
       validateAlipayLoginCredentials(process.env, mode === "sandbox");
-      profile = await exchangeAlipayCode(code);
+      profile = await exchangeAlipayCode(code, mode);
     } else {
       throw new AppError("FEATURE_UNAVAILABLE");
     }

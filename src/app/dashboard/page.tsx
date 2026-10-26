@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
-import { getEnv } from "@/server/config/env";
+import { paymentMode } from "@/server/payments/mode";
 import { getDb } from "@/server/db/client";
 import { formatMoney } from "@/server/orders/money";
 import { TEST_ITEM } from "@/server/orders/service";
@@ -24,13 +24,14 @@ export default async function Dashboard({
     redirect("/");
   }
 
-  const mock = getEnv().PAYMENT_MODE === "mock";
+  const mode = paymentMode(session.provider);
+  const mock = mode === "mock";
   const account = mock
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
 
   return (
-    <PageShell mode={mock ? "MOCK MODE" : getEnv().PAYMENT_MODE.toUpperCase()}>
+    <PageShell mode={mock ? "MOCK MODE" : "ALIPAY SANDBOX"}>
       <AccountNav />
       <h1 className={styles.heading}>{session.user.nickname}</h1>
       <FormMessage code={(await searchParams).error} />
@@ -59,10 +60,11 @@ export default async function Dashboard({
         </section>
       )}
       {mock && !account && <p className={styles.muted}>请退出后注册模拟账号，开始购买。</p>}
+      {mode === "sandbox" && <p className={styles.muted}>付款使用支付宝沙箱余额。</p>}
       <section className={styles.card}>
         <h2>{TEST_ITEM.name}</h2>
         <p className={styles.price}>¥{formatMoney(TEST_ITEM.amountFen)}</p>
-        {account ? (
+        {account || mode === "sandbox" ? (
           <Link className={styles.button} href="/checkout">
             购买
           </Link>

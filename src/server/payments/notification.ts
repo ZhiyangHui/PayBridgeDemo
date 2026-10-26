@@ -21,6 +21,7 @@ export type PaymentNotice = {
   amountFen: number;
   currency: "CNY";
   dedupeKey: string;
+  status?: "paid" | "closed";
 };
 
 /** 支付宝支付通知按非空参数排序，排除签名及签名类型。 */
@@ -43,7 +44,10 @@ function validSignature(text: string, signature: string, publicKey: string): boo
 }
 
 /** 校验支付宝 RSA2 通知后提取订单信息。 */
-function alipayNotice(raw: string, config: NotificationConfig): PaymentNotice {
+function alipayNotice(
+  raw: string,
+  config: Pick<NotificationConfig, "publicKey" | "appId" | "merchantId">,
+): PaymentNotice {
   const params = new URLSearchParams(raw);
   const fields = Object.fromEntries(params);
 
@@ -63,7 +67,7 @@ function alipayNotice(raw: string, config: NotificationConfig): PaymentNotice {
       trade_no: z.string().min(1).max(64),
       notify_id: z.string().min(1).max(128),
       total_amount: z.string(),
-      trade_status: z.enum(["TRADE_SUCCESS", "TRADE_FINISHED"]),
+      trade_status: z.enum(["TRADE_SUCCESS", "TRADE_FINISHED", "TRADE_CLOSED"]),
     })
     .parse(fields);
 
@@ -74,6 +78,7 @@ function alipayNotice(raw: string, config: NotificationConfig): PaymentNotice {
     amountFen: parseMoney(data.total_amount),
     currency: "CNY",
     dedupeKey: data.notify_id,
+    status: data.trade_status === "TRADE_CLOSED" ? "closed" : "paid",
   };
 }
 
@@ -145,6 +150,22 @@ export function verifyNotification(
     }
 
     return provider === "alipay" ? alipayNotice(raw, config) : wechatNotice(raw, headers, config);
+  } catch (cause) {
+    throw new AppError("PAYMENT_INVALID", undefined, { cause });
+  }
+}
+
+/** 支付宝沙箱和模拟通知共用 RSA2 验签，不需要微信配置。 */
+export function verifyAlipayNotification(
+  raw: string,
+  config: Pick<NotificationConfig, "publicKey" | "appId" | "merchantId">,
+): PaymentNotice {
+  try {
+    if (Buffer.byteLength(raw) > 65_536) {
+      throw new AppError("PAYMENT_INVALID");
+    }
+
+    return alipayNotice(raw, config);
   } catch (cause) {
     throw new AppError("PAYMENT_INVALID", undefined, { cause });
   }

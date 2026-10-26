@@ -91,6 +91,7 @@ export async function settleMockPayment(db: PrismaClient, notice: PaymentNotice)
     if (
       !order ||
       order.mode !== "mock" ||
+      notice.status === "closed" ||
       order.provider !== notice.provider ||
       order.amountFen !== notice.amountFen ||
       order.currency !== notice.currency

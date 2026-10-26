@@ -86,6 +86,11 @@ model Order {
   currency        String                @default("CNY")
   status          OrderStatus           @default(pending)
   providerTradeNo String?
+  /// 下单时锁定收款应用和商户，避免切换配置后串单。
+  paymentAppId    String?
+  paymentSellerId String?
+  /// 控制向平台查单的频率，避免多窗口重复查询。
+  lastQueriedAt   DateTime?
   paidAt          DateTime?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt

@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { notFound, redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
+import { paymentMode } from "@/server/payments/mode";
 import { getEnv } from "@/server/config/env";
 import { formatMoney } from "@/server/orders/money";
 import { orderStatusLabel } from "@/server/orders/status";
@@ -37,7 +38,8 @@ export default async function OrderDetail({
     notFound();
   }
 
-  const mock = getEnv().PAYMENT_MODE === "mock" && order.mode === "mock";
+  const mock = paymentMode(order.provider) === "mock" && order.mode === "mock";
+  const sandbox = order.mode === "sandbox" && paymentMode(order.provider) === "sandbox";
   const wallet = mock
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
@@ -90,6 +92,20 @@ export default async function OrderDetail({
               取消订单
             </button>
           </form>
+          <OrderPoller id={order.id} />
+        </>
+      )}
+      {sandbox && order.status === "pending" && (
+        <>
+          <p className={styles.muted}>
+            等待支付宝确认。若已付款，页面会自动更新；关闭收银台不会立即取消订单。
+          </p>
+          {session.provider === "alipay" && (
+            <form action="/api/pay/alipay/create" method="post">
+              <input type="hidden" name="orderId" value={order.id} />
+              <button className={styles.button}>继续支付宝沙箱付款</button>
+            </form>
+          )}
           <OrderPoller id={order.id} />
         </>
       )}
