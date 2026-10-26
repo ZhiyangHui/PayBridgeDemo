@@ -9,8 +9,11 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     await getDb().$queryRaw`SELECT 1`;
+
     return Response.json({ status: "ok", database: "ok" });
   } catch (cause) {
-    return errorResponse(cause instanceof AppError ? cause : new AppError("DATABASE_ERROR", undefined, { cause }));
+    return errorResponse(
+      cause instanceof AppError ? cause : new AppError("DATABASE_ERROR", undefined, { cause }),
+    );
   }
 }

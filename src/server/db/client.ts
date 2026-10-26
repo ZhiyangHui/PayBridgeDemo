@@ -10,10 +10,15 @@ const globalDb = globalThis as unknown as { prisma?: PrismaClient };
 
 /** 延迟创建数据库连接，使初始化错误也能由接口边界处理。 */
 export function getDb(): PrismaClient {
-  if (globalDb.prisma) return globalDb.prisma;
+  if (globalDb.prisma) {
+    return globalDb.prisma;
+  }
+
   const url = databaseUrl(getEnv().DATABASE_URL);
+
   try {
     globalDb.prisma = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url }) });
+
     return globalDb.prisma;
   } catch (cause) {
     throw new AppError("DATABASE_ERROR", "数据库客户端初始化失败", { cause });

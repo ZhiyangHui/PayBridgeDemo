@@ -1,0 +1,44 @@
+.page {
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: 4rem 1.5rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.header a {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+.badge {
+  background: var(--color-warning-bg);
+  color: var(--color-warning-text);
+  border-radius: 999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 2rem;
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 2rem 1rem;
+  }
+  .card {
+    padding: 1.25rem;
+  }
+}

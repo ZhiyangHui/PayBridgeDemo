@@ -1,0 +1,56 @@
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile h1 {
+  font-size: 1.5rem;
+}
+
+.profile p {
+  color: var(--color-muted);
+}
+
+.avatar,
+.fallback {
+  border-radius: 50%;
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  background: var(--color-subtle);
+  font-size: 1.5rem;
+}
+
+.product {
+  margin: 2rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+}
+
+.product h2 {
+  font-size: 1.125rem;
+}
+
+.product p {
+  margin: 0.75rem 0;
+}
+
+.product button {
+  padding: 0.75rem;
+  border-radius: var(--radius-control);
+  cursor: not-allowed;
+}
+
+.logout {
+  background: #17212b;
+  color: white;
+  border-radius: var(--radius-control);
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+}

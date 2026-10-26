@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppError } from "../../src/server/errors/app-error";
 import { errorResponse } from "../../src/server/errors/response";
+
 afterEach(() => vi.restoreAllMocks());
+
 describe("错误边界", () => {
   it("保留原因但响应和日志都不泄露秘密", async () => {
     const logger = vi.spyOn(console, "error").mockImplementation(() => {});

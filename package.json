@@ -14,7 +14,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "prestart": "tsx scripts/check-env.ts"
+    "prestart": "tsx scripts/check-env.ts",
+    "format": "prettier --write \"{src,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\"",
+    "format:check": "prettier --check \"{src,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\""
   },
   "type": "module",
   "dependencies": {
@@ -36,6 +38,7 @@
     "@types/react-dom": "^19.3.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.4.3",
+    "prettier": "3.9.10",
     "prisma": "^7.10.1",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",

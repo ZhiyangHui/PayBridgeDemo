@@ -1,30 +1,37 @@
+import Link from "next/link";
 import { getEnv } from "@/server/config/env";
+import { currentSession } from "@/server/auth/session";
+import { PageShell } from "@/components/PageShell";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 展示开发首页及当前运行模式。 */
-export default function Home() {
+/** 展示登录入口和当前会话，明确标注模拟渠道。 */
+export default async function Home() {
   const env = getEnv();
+  const session = await currentSession();
 
   return (
-    <main className={styles.page}>
-      <span className={styles.mode}>
-        {env.PAYMENT_MODE === "mock" ? "MOCK MODE" : env.PAYMENT_MODE.toUpperCase()}
-      </span>
-      <h1 className={styles.title}>payBridge Demo</h1>
-      <p className={styles.subtitle}>微信与支付宝登录、支付演示。</p>
-      <section className={styles.card}>
-        <h2 className={styles.cardTitle}>项目骨架已就绪</h2>
+    <PageShell mode={env.PAYMENT_MODE === "mock" ? "MOCK MODE" : env.PAYMENT_MODE.toUpperCase()}>
+      <h1 className={styles.title}>登录 payBridge</h1>
+      <p className={styles.description}>选择微信或支付宝登录，查看你的个人资料。</p>
+
+      <div className={styles.actions}>
+        <a className={styles.loginButton} href="/api/auth/wechat/start">
+          微信登录{env.WECHAT_MODE === "mock" ? "（模拟）" : ""}
+        </a>
+        <a className={styles.loginButton} href="/api/auth/alipay/start">
+          支付宝登录{env.PAYMENT_MODE === "mock" ? "（模拟）" : ""}
+        </a>
+      </div>
+
+      {session && (
         <p className={styles.description}>
-          框架、数据库和开发工具已配置。接下来接入登录与支付，目前还不能授权或付款。
+          已登录为 {session.user.nickname}，<Link href="/dashboard">进入个人页面</Link>。
         </p>
-        <div className={styles.actions}>
-          {["微信登录 · 待接入", "支付宝登录 · 待接入"].map((label) => (
-            <button key={label} disabled className={styles.loginButton}>{label}</button>
-          ))}
-        </div>
-      </section>
-    </main>
+      )}
+
+      <p className={styles.description}>当前已开放登录测试，购买和支付功能尚未接入。</p>
+    </PageShell>
   );
 }

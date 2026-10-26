@@ -1,15 +1,18 @@
 generator client {
   provider = "prisma-client"
-  output = "../src/generated/prisma"
+  output   = "../src/generated/prisma"
 }
+
 datasource db {
   provider = "sqlite"
 }
+
 /// 登录与支付渠道。
 enum Provider {
   wechat
   alipay
 }
+
 /// 订单状态，支付成功后不允许回退。
 enum OrderStatus {
   pending
@@ -17,72 +20,84 @@ enum OrderStatus {
   failed
   closed
 }
+
 /// 本地用户资料。
 model User {
-  id String @id @default(cuid())
-  nickname String
-  avatar String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String         @id @default(cuid())
+  nickname   String
+  avatar     String?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
   identities AuthIdentity[]
-  sessions Session[]
-  orders Order[]
+  sessions   Session[]
+  orders     Order[]
 }
+
 /// 关联平台身份，同一渠道用户只对应一个本地身份。
 model AuthIdentity {
-  id String @id @default(cuid())
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  provider Provider
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider       Provider
   providerUserId String
-  unionId String?
+  unionId        String?
+
   @@unique([provider, providerUserId])
 }
+
 /// 保存会话令牌哈希与有效期，不保存明文令牌。
 model Session {
-  id String @id @default(cuid())
-  tokenHash String @unique
-  userId String
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 记录本次登录渠道，旧会话默认按微信处理。
+  provider  Provider @default(wechat)
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
+
   @@index([userId])
 }
+
 /// 绑定浏览器的一次性授权状态，防止伪造与重放。
 model OAuthState {
-  id String @id @default(cuid())
-  stateHash String @unique
+  id          String    @id @default(cuid())
+  stateHash   String    @unique
   browserHash String
-  provider Provider
-  expiresAt DateTime
-  consumedAt DateTime?
+  provider    Provider
+  expiresAt   DateTime
+  consumedAt  DateTime?
 }
+
 /// 保存服务端确定的金额和支付状态。
 model Order {
-  id String @id @default(cuid())
-  outTradeNo String @unique
-  userId String
-  user User @relation(fields: [userId], references: [id])
-  provider Provider
+  id              String                @id @default(cuid())
+  outTradeNo      String                @unique
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id])
+  provider        Provider
   /// 金额单位为分，禁止浮点金额。
-  amountFen Int
-  currency String @default("CNY")
-  status OrderStatus @default(pending)
+  amountFen       Int
+  currency        String                @default("CNY")
+  status          OrderStatus           @default(pending)
   providerTradeNo String?
-  paidAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  notifications PaymentNotification[]
-  @@index([userId, createdAt])
+  paidAt          DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  notifications   PaymentNotification[]
+
   @@unique([provider, providerTradeNo])
+  @@index([userId, createdAt])
 }
+
 /// 记录通知处理结果，用唯一标识保证幂等。
 model PaymentNotification {
-  id String @id @default(cuid())
-  provider Provider
+  id        String   @id @default(cuid())
+  provider  Provider
   dedupeKey String
-  orderId String
-  order Order @relation(fields: [orderId], references: [id])
-  result String
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id])
+  result    String
   createdAt DateTime @default(now())
+
   @@unique([provider, dedupeKey])
 }
