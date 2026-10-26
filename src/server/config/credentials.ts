@@ -48,3 +48,25 @@ export function validateCredentials(source: Record<string, string | undefined>):
     }
   }
 }
+
+/** 独立授权入口只检查登录所需凭据，不要求配置支付通知地址。 */
+export function validateAlipayLoginCredentials(
+  source: Record<string, string | undefined>,
+  sandbox: boolean,
+): void {
+  const gateway = sandbox
+    ? "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+    : "https://openapi.alipay.com/gateway.do";
+
+  if (!/^\d{16,32}$/.test(source.ALIPAY_APP_ID ?? "") || source.ALIPAY_GATEWAY !== gateway) {
+    throw new AppError("CONFIG_ERROR", "请检查 ALIPAY_APP_ID 和 ALIPAY_GATEWAY");
+  }
+
+  for (const field of ["ALIPAY_PRIVATE_KEY", "ALIPAY_PUBLIC_KEY"] as const) {
+    try {
+      validateKey(source[field] ?? "", field === "ALIPAY_PRIVATE_KEY");
+    } catch (cause) {
+      throw new AppError("CONFIG_ERROR", `密钥配置有误：${field}`, { cause });
+    }
+  }
+}

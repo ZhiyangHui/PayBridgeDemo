@@ -14,6 +14,8 @@ import {
   tokenHash,
 } from "../../src/server/auth/store";
 
+import { createMockCode, exchangeMockCode } from "../../src/server/auth/mock";
+
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-auth-"));
 const database = `file:${path.join(directory, "test.db")}`;
 const db = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: database }) });
@@ -57,8 +59,16 @@ describe("真实 SQLite 登录状态和会话", () => {
     await expect(consumeLoginState(db, "alipay", state, browser)).rejects.toMatchObject({
       code: "OAUTH_STATE_INVALID",
     });
-    await expect(consumeLoginState(db, "wechat", state, browser)).resolves.toBeUndefined();
+    await expect(consumeLoginState(db, "wechat", state, browser)).resolves.toBe("mock");
   });
+  it("授权模式保存在服务端，回调读取原模式且仍只能消费一次", async () => {
+    const { state, browser } = await createLoginState(db, "alipay", "sandbox");
+    await expect(consumeLoginState(db, "alipay", state, browser)).resolves.toBe("sandbox");
+    await expect(consumeLoginState(db, "alipay", state, browser)).rejects.toMatchObject({
+      code: "OAUTH_STATE_INVALID",
+    });
+  });
+
   it("过期 state 被拒绝", async () => {
     const { state, browser } = await createLoginState(db, "alipay");
     await db.oAuthState.updateMany({ data: { expiresAt: new Date(0) } });
@@ -89,6 +99,41 @@ describe("真实 SQLite 登录状态和会话", () => {
     expect(await db.user.count()).toBe(2);
     expect((await readSession(db, token))?.provider).toBe("alipay");
   });
+  it("选择模拟账号后保存对应资料，重登不重复建用户，换号撤销旧会话", async () => {
+    const secret = "mock-account-test-secret".repeat(2);
+    const primary = exchangeMockCode(
+      createMockCode("wechat", "state", secret, {
+        providerUserId: "mock_primary",
+        nickname: "primary",
+        avatar: "/avatars/wechat.svg",
+      }),
+      "wechat",
+      "state",
+      secret,
+    );
+    const secondary = exchangeMockCode(
+      createMockCode("wechat", "state", secret, {
+        providerUserId: "mock_secondary",
+        nickname: "secondary",
+        avatar: "/avatars/wechat.svg",
+      }),
+      "wechat",
+      "state",
+      secret,
+    );
+    const first = await completeLogin(db, "wechat", primary);
+    const firstUser = (await readSession(db, first))!.user;
+    const again = await completeLogin(db, "wechat", primary, first);
+    expect((await readSession(db, again))!.user.id).toBe(firstUser.id);
+    const switched = await completeLogin(db, "wechat", secondary, again);
+    const secondUser = (await readSession(db, switched))!.user;
+    expect(secondUser.id).not.toBe(firstUser.id);
+    expect(secondUser.nickname).toBe(secondary.nickname);
+    expect(secondUser.avatar).toBe(secondary.avatar);
+    expect(await readSession(db, again)).toBeNull();
+    expect(await db.user.count()).toBe(2);
+  });
+
   it("退出撤销和会话过期后无法访问", async () => {
     const token = await completeLogin(db, "alipay", profile);
     await revokeSession(db, token);

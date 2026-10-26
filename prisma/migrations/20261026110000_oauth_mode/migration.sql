@@ -1,0 +1,1 @@
+ALTER TABLE "OAuthState" ADD COLUMN "mode" TEXT NOT NULL DEFAULT 'mock';

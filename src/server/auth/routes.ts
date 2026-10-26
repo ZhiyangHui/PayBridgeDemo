@@ -1,14 +1,17 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { getEnv } from "../config/env";
+import { validateAlipayLoginCredentials } from "../config/credentials";
 import { getDb } from "../db/client";
 import { AppError } from "../errors/app-error";
 import { errorResponse } from "../errors/response";
 import { alipayAuthorizeUrl, exchangeAlipayCode } from "./alipay";
 import { createMockCode, exchangeMockCode } from "./mock";
+import { registerMockAccount, loginMockAccount } from "./mock-accounts";
 import { cookieOptions, SESSION_COOKIE } from "./session";
 import {
   completeLogin,
+  checkLoginState,
   consumeLoginState,
   createLoginState,
   revokeSession,
@@ -43,10 +46,11 @@ function loginFailure(cause: unknown) {
 }
 
 /** 创建浏览器绑定的授权状态并跳转到对应平台。 */
-export async function startLogin(request: NextRequest, provider: LoginProvider) {
+export async function startLogin(request: NextRequest, provider: LoginProvider, sandbox = false) {
   try {
     const env = getEnv();
-    const canonical = new URL(`/api/auth/${provider}/start`, env.APP_URL);
+    const path = sandbox ? "/api/auth/alipay/sandbox/start" : `/api/auth/${provider}/start`;
+    const canonical = new URL(path, env.APP_URL);
 
     // 统一 localhost 和 127.0.0.1 等访问地址，防止回调丢失 Cookie。
     if (request.headers.get("host") !== canonical.host) {
@@ -57,11 +61,23 @@ export async function startLogin(request: NextRequest, provider: LoginProvider) 
       throw new AppError("FEATURE_UNAVAILABLE");
     }
 
-    const { state, browser } = await createLoginState(getDb(), provider);
+    if (sandbox && (provider !== "alipay" || env.PAYMENT_MODE === "live")) {
+      throw new AppError("NOT_FOUND");
+    }
+
+    let mode: "mock" | "sandbox" | "live" = "mock";
+
+    if (sandbox || !isMockLogin(provider)) {
+      mode = env.PAYMENT_MODE === "live" ? "live" : "sandbox";
+      validateAlipayLoginCredentials(process.env, mode === "sandbox");
+    }
+
+    const { state, browser } = await createLoginState(getDb(), provider, mode);
     const callback = new URL(`/api/auth/${provider}/callback`, env.APP_URL).toString();
-    const destination = isMockLogin(provider)
-      ? new URL(`/mock/login/${provider}?state=${state}`, env.APP_URL).toString()
-      : alipayAuthorizeUrl(state, callback, env.PAYMENT_MODE === "sandbox");
+    const destination =
+      mode === "mock"
+        ? new URL(`/mock/login/${provider}?state=${state}`, env.APP_URL).toString()
+        : alipayAuthorizeUrl(state, callback, mode === "sandbox");
     const response = NextResponse.redirect(destination, 303);
     response.cookies.set(`oauth_${provider}`, browser, cookieOptions(STATE_SECONDS));
     response.headers.set("Cache-Control", "no-store");
@@ -76,7 +92,7 @@ export async function startLogin(request: NextRequest, provider: LoginProvider) 
 export async function finishLogin(request: NextRequest, provider: LoginProvider) {
   try {
     const state = request.nextUrl.searchParams.get("state") ?? "";
-    await consumeLoginState(
+    const mode = await consumeLoginState(
       getDb(),
       provider,
       state,
@@ -95,9 +111,14 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
 
     let profile: LoginProfile;
 
-    if (isMockLogin(provider)) {
+    if (mode === "mock" && isMockLogin(provider)) {
       profile = exchangeMockCode(code, provider, state, getEnv().SESSION_SECRET);
-    } else if (provider === "alipay") {
+    } else if (provider === "alipay" && (mode === "sandbox" || mode === "live")) {
+      if (mode === "live" && getEnv().PAYMENT_MODE !== "live") {
+        throw new AppError("OAUTH_STATE_INVALID");
+      }
+
+      validateAlipayLoginCredentials(process.env, mode === "sandbox");
       profile = await exchangeAlipayCode(code);
     } else {
       throw new AppError("FEATURE_UNAVAILABLE");
@@ -120,8 +141,11 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
   }
 }
 
-/** 模拟授权确认仅生成签名测试码，仍交由真实 callback 校验状态。 */
+/** 模拟账号验证后签发短期码，最终仍由共用 callback 建立会话。 */
 export async function confirmMockLogin(request: NextRequest, provider: LoginProvider) {
+  let state = "";
+  let intent = "login";
+
   try {
     if (!isMockLogin(provider)) {
       throw new AppError("NOT_FOUND");
@@ -129,27 +153,62 @@ export async function confirmMockLogin(request: NextRequest, provider: LoginProv
 
     requireSameOrigin(request);
     const form = await request.formData();
-    const state = String(form.get("state") ?? "");
+    state = String(form.get("state") ?? "");
+    intent = String(form.get("intent") ?? "login");
+    const loginState = await checkLoginState(
+      getDb(),
+      provider,
+      state,
+      request.cookies.get(`oauth_${provider}`)?.value ?? "",
+    );
 
-    if (!/^[a-f0-9]{64}$/.test(state)) {
+    if (loginState.mode !== "mock") {
       throw new AppError("OAUTH_STATE_INVALID");
+    }
+
+    const username = String(form.get("username") ?? "");
+    const password = String(form.get("password") ?? "");
+    let profile: LoginProfile;
+
+    if (intent === "register") {
+      profile = await registerMockAccount(
+        getDb(),
+        provider,
+        username,
+        password,
+        String(form.get("balance") ?? "100.00"),
+      );
+    } else if (intent === "login") {
+      profile = await loginMockAccount(getDb(), provider, username, password);
+    } else {
+      throw new AppError("INVALID_INPUT");
     }
 
     const callback = new URL(`/api/auth/${provider}/callback`, getEnv().APP_URL);
     callback.searchParams.set("state", state);
-
-    if (form.get("decision") === "deny") {
-      callback.searchParams.set("error", "access_denied");
-    } else {
-      callback.searchParams.set(
-        provider === "alipay" ? "auth_code" : "code",
-        createMockCode(provider, state, getEnv().SESSION_SECRET),
-      );
-    }
+    callback.searchParams.set(
+      provider === "alipay" ? "auth_code" : "code",
+      createMockCode(provider, state, getEnv().SESSION_SECRET, profile),
+    );
 
     return NextResponse.redirect(callback, 303);
   } catch (cause) {
-    return loginFailure(cause);
+    const recoverable =
+      cause instanceof AppError &&
+      ["ACCOUNT_EXISTS", "LOGIN_FAILED", "INVALID_CREDENTIALS", "INVALID_AMOUNT"].includes(
+        cause.code,
+      );
+
+    if (!recoverable) {
+      return loginFailure(cause);
+    }
+
+    const url = new URL(`/mock/login/${provider}`, getEnv().APP_URL);
+    url.searchParams.set("state", state);
+    url.searchParams.set("tab", intent === "register" ? "register" : "login");
+    url.searchParams.set("error", cause.code);
+
+    return NextResponse.redirect(url, 303);
   }
 }
 

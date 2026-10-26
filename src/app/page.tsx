@@ -14,7 +14,7 @@ export default async function Home() {
   return (
     <PageShell mode={env.PAYMENT_MODE === "mock" ? "MOCK MODE" : env.PAYMENT_MODE.toUpperCase()}>
       <h1 className={styles.title}>登录 payBridge</h1>
-      <p className={styles.description}>选择微信或支付宝登录，查看你的个人资料。</p>
+      <p className={styles.description}>选择登录方式</p>
 
       <div className={styles.actions}>
         <a className={styles.loginButton} href="/api/auth/wechat/start">
@@ -23,15 +23,18 @@ export default async function Home() {
         <a className={styles.loginButton} href="/api/auth/alipay/start">
           支付宝登录{env.PAYMENT_MODE === "mock" ? "（模拟）" : ""}
         </a>
+        {env.PAYMENT_MODE === "mock" && (
+          <a className={styles.loginButton} href="/api/auth/alipay/sandbox/start">
+            支付宝登录（沙箱）
+          </a>
+        )}
       </div>
 
       {session && (
         <p className={styles.description}>
-          已登录为 {session.user.nickname}，<Link href="/dashboard">进入个人页面</Link>。
+          已登录为 {session.user.nickname}，<Link href="/dashboard">进入商店</Link>。
         </p>
       )}
-
-      <p className={styles.description}>当前已开放登录测试，购买和支付功能尚未接入。</p>
     </PageShell>
   );
 }

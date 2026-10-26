@@ -1,44 +1,92 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isMockLogin } from "@/server/auth/routes";
 import { PageShell } from "@/components/PageShell";
-import styles from "./page.module.css";
+import { FormMessage } from "@/components/FormMessage";
+import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 明确展示模拟授权，并通过同源 POST 确认或取消。 */
+/** 模拟平台的账号登录与注册入口。 */
 export default async function MockLogin({
   params,
   searchParams,
 }: {
   params: Promise<{ provider: string }>;
-  searchParams: Promise<{ state?: string }>;
+  searchParams: Promise<{ state?: string; tab?: string; error?: string }>;
 }) {
   const { provider } = await params;
-  const { state } = await searchParams;
+  const query = await searchParams;
 
-  if ((provider !== "wechat" && provider !== "alipay") || !isMockLogin(provider)) {
+  if (
+    (provider !== "wechat" && provider !== "alipay") ||
+    !isMockLogin(provider) ||
+    !/^[a-f0-9]{64}$/.test(query.state ?? "")
+  ) {
     notFound();
   }
 
-  if (!state || !/^[a-f0-9]{64}$/.test(state)) {
-    notFound();
-  }
+  const register = query.tab === "register";
+  const base = `/mock/login/${provider}?state=${query.state}`;
 
   return (
     <PageShell mode="MOCK MODE">
-      <h1>{provider === "wechat" ? "微信" : "支付宝"}模拟授权</h1>
-      <p className={styles.description}>
-        将使用固定测试用户登录，不会访问真实平台或获取你的个人资料。
-      </p>
-      <form action={`/api/mock/auth/${provider}`} method="post" className={styles.actions}>
-        <input type="hidden" name="state" value={state} />
-        <button name="decision" value="allow">
-          确认授权
-        </button>
-        <button name="decision" value="deny">
-          取消
-        </button>
+      <h1 className={styles.heading}>{provider === "wechat" ? "微信" : "支付宝"}模拟账号</h1>
+      <nav className={styles.tabs} aria-label="账号操作">
+        <Link href={base} aria-current={!register ? "page" : undefined}>
+          登录
+        </Link>
+        <Link href={`${base}&tab=register`} aria-current={register ? "page" : undefined}>
+          注册
+        </Link>
+      </nav>
+      <FormMessage code={query.error} />
+      <form action={`/api/mock/auth/${provider}`} method="post" className={styles.form}>
+        <input type="hidden" name="state" value={query.state} />
+        <input type="hidden" name="intent" value={register ? "register" : "login"} />
+        <label>
+          账号
+          <input
+            name="username"
+            autoComplete="username"
+            required
+            minLength={3}
+            maxLength={24}
+            pattern="[a-zA-Z0-9_]+"
+            placeholder="字母、数字或下划线"
+          />
+        </label>
+        <label>
+          密码
+          <input
+            name="password"
+            type="password"
+            autoComplete={register ? "new-password" : "current-password"}
+            required
+            minLength={8}
+            maxLength={128}
+            placeholder="至少 8 位"
+          />
+        </label>
+        {register && (
+          <label>
+            初始余额（元）
+            <input
+              name="balance"
+              type="number"
+              min="0"
+              max="1000000"
+              step="0.01"
+              defaultValue="100.00"
+              required
+            />
+          </label>
+        )}
+        <button className={styles.button}>{register ? "注册并登录" : "登录"}</button>
       </form>
+      <Link href="/" className={styles.back}>
+        返回
+      </Link>
     </PageShell>
   );
 }

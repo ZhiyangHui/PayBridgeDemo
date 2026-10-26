@@ -1,55 +1,75 @@
-import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
 import { getEnv } from "@/server/config/env";
+import { getDb } from "@/server/db/client";
+import { formatMoney } from "@/server/orders/money";
+import { TEST_ITEM } from "@/server/orders/service";
 import { PageShell } from "@/components/PageShell";
-import styles from "./page.module.css";
+import { AccountNav } from "@/components/AccountNav";
+import { FormMessage } from "@/components/FormMessage";
+import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 登录后显示当前身份和测试商品，未登录时返回首页。 */
-export default async function Dashboard() {
+/** 商店只展示当前用户余额、商品和购买入口。 */
+export default async function Dashboard({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   const session = await currentSession();
 
   if (!session) {
     redirect("/");
   }
 
-  const env = getEnv();
+  const mock = getEnv().PAYMENT_MODE === "mock";
+  const account = mock
+    ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
+    : null;
 
   return (
-    <PageShell mode={env.PAYMENT_MODE === "mock" ? "MOCK MODE" : env.PAYMENT_MODE.toUpperCase()}>
-      <div className={styles.profile}>
-        {session.user.avatar ? (
-          <Image
-            unoptimized
-            src={session.user.avatar}
-            width={64}
-            height={64}
-            alt="用户头像"
-            className={styles.avatar}
-            referrerPolicy="no-referrer"
-          />
+    <PageShell mode={mock ? "MOCK MODE" : getEnv().PAYMENT_MODE.toUpperCase()}>
+      <AccountNav />
+      <h1 className={styles.heading}>{session.user.nickname}</h1>
+      <FormMessage code={(await searchParams).error} />
+      {account && (
+        <section className={styles.balance}>
+          <p className={styles.muted}>模拟余额</p>
+          <p className={styles.price}>¥{formatMoney(account.balanceFen)}</p>
+          <details>
+            <summary>调整余额</summary>
+            <form action="/api/mock/wallet" method="post" className={styles.form}>
+              <label>
+                余额（元）
+                <input
+                  name="balance"
+                  type="number"
+                  min="0"
+                  max="1000000"
+                  step="0.01"
+                  defaultValue={formatMoney(account.balanceFen)}
+                  required
+                />
+              </label>
+              <button className={styles.button}>保存</button>
+            </form>
+          </details>
+        </section>
+      )}
+      {mock && !account && <p className={styles.muted}>请退出后注册模拟账号，开始购买。</p>}
+      <section className={styles.card}>
+        <h2>{TEST_ITEM.name}</h2>
+        <p className={styles.price}>¥{formatMoney(TEST_ITEM.amountFen)}</p>
+        {account ? (
+          <Link className={styles.button} href="/checkout">
+            购买
+          </Link>
         ) : (
-          <span className={styles.fallback} aria-label="默认头像">
-            {session.user.nickname.slice(0, 1)}
-          </span>
+          <p className={styles.muted}>暂不可购买</p>
         )}
-        <div>
-          <h1>{session.user.nickname}</h1>
-          <p>登录渠道：{session.provider === "wechat" ? "微信" : "支付宝"}</p>
-        </div>
-      </div>
-
-      <section className={styles.product}>
-        <h2>测试商品</h2>
-        <p>人民币 0.01 元</p>
-        <button disabled>购买测试商品 · 待接入</button>
       </section>
-
-      <form action="/api/auth/logout" method="post">
-        <button className={styles.logout}>退出登录</button>
-      </form>
     </PageShell>
   );
 }

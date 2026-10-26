@@ -17,11 +17,16 @@ export function tokenHash(token: string): string {
 }
 
 /** 为一次授权生成独立 state 和浏览器绑定值。 */
-export async function createLoginState(db: PrismaClient, provider: LoginProvider) {
+export async function createLoginState(
+  db: PrismaClient,
+  provider: LoginProvider,
+  mode: "mock" | "sandbox" | "live" = "mock",
+) {
   const state = newToken();
   const browser = newToken();
   await db.oAuthState.create({
     data: {
+      mode,
       stateHash: tokenHash(state),
       browserHash: tokenHash(browser),
       provider,
@@ -32,6 +37,34 @@ export async function createLoginState(db: PrismaClient, provider: LoginProvider
   return { state, browser };
 }
 
+/** 注册或登录前检查浏览器绑定，不提前消费回调的 state。 */
+export async function checkLoginState(
+  db: PrismaClient,
+  provider: LoginProvider,
+  state: string,
+  browser: string,
+) {
+  const valid = /^[a-f0-9]{64}$/.test(state) && /^[a-f0-9]{64}$/.test(browser);
+  const record =
+    valid &&
+    (await db.oAuthState.findFirst({
+      where: {
+        stateHash: tokenHash(state),
+        browserHash: tokenHash(browser),
+        provider,
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      select: { id: true, mode: true },
+    }));
+
+  if (!record) {
+    throw new AppError("OAUTH_STATE_INVALID");
+  }
+
+  return record;
+}
+
 /** 原子消费有效 state，阻止跨浏览器、跨渠道、过期和并发重放。 */
 export async function consumeLoginState(
   db: PrismaClient,
@@ -39,24 +72,17 @@ export async function consumeLoginState(
   state: string,
   browser: string,
 ) {
-  if (!/^[a-f0-9]{64}$/.test(state) || !/^[a-f0-9]{64}$/.test(browser)) {
-    throw new AppError("OAUTH_STATE_INVALID");
-  }
-
+  const record = await checkLoginState(db, provider, state, browser);
   const result = await db.oAuthState.updateMany({
-    where: {
-      stateHash: tokenHash(state),
-      browserHash: tokenHash(browser),
-      provider,
-      consumedAt: null,
-      expiresAt: { gt: new Date() },
-    },
+    where: { id: record.id, consumedAt: null, expiresAt: { gt: new Date() } },
     data: { consumedAt: new Date() },
   });
 
   if (result.count !== 1) {
     throw new AppError("OAUTH_STATE_INVALID");
   }
+
+  return record.mode;
 }
 
 /** 事务内更新平台身份、撤销旧会话并签发新会话，避免会话固定攻击。 */

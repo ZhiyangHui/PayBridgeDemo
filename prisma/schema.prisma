@@ -23,14 +23,15 @@ enum OrderStatus {
 
 /// 本地用户资料。
 model User {
-  id         String         @id @default(cuid())
-  nickname   String
-  avatar     String?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-  identities AuthIdentity[]
-  sessions   Session[]
-  orders     Order[]
+  id          String         @id @default(cuid())
+  nickname    String
+  avatar      String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  identities  AuthIdentity[]
+  sessions    Session[]
+  orders      Order[]
+  mockAccount MockAccount?
 }
 
 /// 关联平台身份，同一渠道用户只对应一个本地身份。
@@ -60,6 +61,8 @@ model Session {
 
 /// 绑定浏览器的一次性授权状态，防止伪造与重放。
 model OAuthState {
+  /// 授权模式由服务端记录，回调不能通过参数切换模式。
+  mode        String    @default("mock")
   id          String    @id @default(cuid())
   stateHash   String    @unique
   browserHash String
@@ -72,6 +75,9 @@ model OAuthState {
 model Order {
   id              String                @id @default(cuid())
   outTradeNo      String                @unique
+  checkoutKey     String?               @unique
+  /// 模拟订单与真实订单隔离，旧订单不视为模拟。
+  mode            String                @default("live")
   userId          String
   user            User                  @relation(fields: [userId], references: [id])
   provider        Provider
@@ -100,4 +106,18 @@ model PaymentNotification {
   createdAt DateTime @default(now())
 
   @@unique([provider, dedupeKey])
+}
+
+/// 模拟平台账号和余额，密码只保存加盐哈希，金额单位为分。
+model MockAccount {
+  id           String   @id
+  provider     Provider
+  username     String
+  passwordHash String
+  balanceFen   Int      @default(0)
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+
+  @@unique([provider, username])
 }

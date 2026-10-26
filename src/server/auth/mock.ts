@@ -8,18 +8,28 @@ const payloadSchema = z.object({
   provider: z.enum(["wechat", "alipay"]),
   state: z.string(),
   expires: z.number(),
+  profile: z.object({
+    providerUserId: z.string().startsWith("mock_").max(80),
+    nickname: z.string().min(3).max(24),
+    avatar: z.enum(["/avatars/wechat.svg", "/avatars/alipay.svg"]),
+  }),
 });
 
 /** 签发仅用于模拟回调的短期授权码。 */
-export function createMockCode(provider: LoginProvider, state: string, secret: string): string {
+export function createMockCode(
+  provider: LoginProvider,
+  state: string,
+  secret: string,
+  profile: LoginProfile,
+): string {
   const payload = Buffer.from(
-    JSON.stringify({ provider, state, expires: Date.now() + 60_000 }),
+    JSON.stringify({ provider, state, profile, expires: Date.now() + 60_000 }),
   ).toString("base64url");
 
   return `${payload}.${createHmac("sha256", secret).update(payload).digest("hex")}`;
 }
 
-/** 验证模拟码签名和绑定关系，返回固定测试身份。 */
+/** 验证模拟码签名和绑定关系，返回所选测试身份。 */
 export function exchangeMockCode(
   code: string,
   provider: LoginProvider,
@@ -38,7 +48,15 @@ export function exchangeMockCode(
     throw new AppError("OAUTH_CODE_INVALID");
   }
 
-  const parsed = payloadSchema.safeParse(JSON.parse(Buffer.from(payload, "base64url").toString()));
+  let decoded: unknown;
+
+  try {
+    decoded = JSON.parse(Buffer.from(payload, "base64url").toString());
+  } catch (cause) {
+    throw new AppError("OAUTH_CODE_INVALID", undefined, { cause });
+  }
+
+  const parsed = payloadSchema.safeParse(decoded);
 
   if (
     !parsed.success ||
@@ -49,9 +67,5 @@ export function exchangeMockCode(
     throw new AppError("OAUTH_CODE_INVALID");
   }
 
-  return {
-    providerUserId: `mock-${provider}-user`,
-    nickname: provider === "wechat" ? "微信测试用户" : "支付宝测试用户",
-    avatar: `/avatars/${provider}.svg`,
-  };
+  return parsed.data.profile;
 }
