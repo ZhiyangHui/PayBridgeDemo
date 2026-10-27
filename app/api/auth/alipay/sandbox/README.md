@@ -1,5 +1,5 @@
-# 支付宝沙箱入口 / Alipay sandbox entry
+# 沙箱入口 / Sandbox entry
 
-用本站账号登录，之后去支付宝沙箱付款；这里不调用支付宝 OAuth。
+通过本站账号登录，开启支付宝沙箱付款。服务端必须已配置沙箱。
 
-Signs in a local account for Alipay sandbox payments; it does not call Alipay OAuth.
+Sign in with a local account for Alipay sandbox payments. Sandbox must be configured on the server.

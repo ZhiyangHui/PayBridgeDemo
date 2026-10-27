@@ -7,12 +7,12 @@ A small Next.js project for WeChat and Alipay login and payments.
 ## 现在能用什么 / What works
 
 - 模拟账号注册、登录、设置余额、买商品、看订单。 / Mock registration, login, editable balances, purchases, and order history.
-- 支付宝沙箱付款已跑通；“支付宝模拟”只扣本站余额，“支付宝沙箱”才去官方收银台。 / Alipay sandbox payment works. Mock payments use the local balance; sandbox payments open the official checkout.
+- 微信或支付宝登录后，都能在结算时选择两种付款方式。支付宝沙箱付款已跑通。 / Either login provider can choose either payment method at checkout. Alipay sandbox payment works.
 - 付款通知会验签，重复通知不会重复扣款。 / Payment notifications are verified and do not charge twice.
 
-还没完成：支付宝沙箱 OAuth 资料查询、微信真实联调、全新克隆验收和演示视频。现在的沙箱付款入口用本站账号登录。
+还没完成：支付宝沙箱 OAuth 资料查询、微信真实联调、全新克隆验收和演示视频。当前支付宝配置使用本站模拟账号登录，付款与登录分别处理。
 
-Still pending: Alipay sandbox OAuth profile retrieval, live WeChat testing, a fresh-clone check, and the demo video. The current sandbox payment entry uses a local account.
+Still pending: Alipay sandbox OAuth profile retrieval, live WeChat testing, a fresh-clone check, and the demo video. The current Alipay setup uses a local mock account for login; payment is separate.
 
 ## 跑起来 / Run locally
 
@@ -30,9 +30,9 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000). Mock mode needs no provider account or payment keys. Register locally, set a balance, and try a purchase. The database is prepared automatically.
 
-支付宝沙箱配置见 [接入说明 / Setup](docs/setup.md)。切换入口时回首页重新登录；模拟余额和沙箱资金分开。
+支付宝沙箱配置见 [接入说明 / Setup](docs/setup.md)。首页选平台，再选模拟或沙箱。沙箱须先在 `.env.local` 配好并重启；模拟入口始终只扣本站余额。
 
-See the setup guide for Alipay sandbox payments. To switch modes, log in again from the homepage. Mock balances and sandbox funds are separate.
+See the setup guide for Alipay sandbox payments. Choose a provider, then mock or sandbox. Configure sandbox in `.env.local` and restart first. The mock entry always uses the local balance.
 
 ## 代码在哪 / Where the code lives
 

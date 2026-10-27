@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { isMockLogin } from "@/lib/auth/routes";
 import { PageShell } from "@/components/PageShell";
 import { FormMessage } from "@/components/FormMessage";
 import styles from "@/components/shop.module.css";
@@ -10,7 +9,7 @@ export const dynamic = "force-dynamic";
 /**
  * 显示指定渠道的模拟账号登录或注册表单。
  * 根据 tab 参数切换表单，注册时增加初始余额输入；提交时携带授权 state。
- * 渠道无效、未启用模拟登录或 state 格式错误时显示 404。
+ * 渠道无效或 state 格式错误时显示 404；提交时由后端验证授权记录。
  */
 export default async function MockLogin({
   params,
@@ -24,7 +23,6 @@ export default async function MockLogin({
 
   if (
     (provider !== "wechat" && provider !== "alipay") ||
-    !isMockLogin(provider) ||
     !/^[a-f0-9]{64}$/.test(query.state ?? "")
   ) {
     notFound();

@@ -10,7 +10,7 @@
   line-height: 1.75;
 }
 
-/* 四个登录入口按两列排列，小屏幕改为单列。 */
+/* 登录选项按两列排列，小屏幕改为单列。 */
 .actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

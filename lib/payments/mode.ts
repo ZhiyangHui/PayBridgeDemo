@@ -2,34 +2,42 @@ import { getEnv } from "../config/env";
 import { AppError } from "../errors/app-error";
 import type { LoginProvider, PaymentMode } from "../auth/types";
 
-/**
- * 读取服务端允许使用的真实支付环境，供平台接口及通知校验使用。
- * 用户下单必须使用 sessionPaymentMode，不能直接用全局配置代替会话选择。
- */
-export function paymentMode(provider: LoginProvider): "mock" | "sandbox" | "live" {
+/** 读取指定支付渠道的服务端配置，用于平台请求和通知校验。 */
+export function paymentMode(provider: LoginProvider): PaymentMode {
   const env = getEnv();
 
   return provider === "wechat" ? env.WECHAT_MODE : env.PAYMENT_MODE;
 }
 
 /**
- * 读取会话中已保存的支付模式，并检查对应平台环境仍已启用。
- * 模拟会话始终返回 mock；表单和网址中的 mode 不参与此判断。
+ * 读取本次会话的支付环境；传入付款渠道时，返回该渠道的实际模式。
+ * 登录渠道不参与判断。旧模拟会话始终保持模拟，不能因配置变化升级到真实付款。
+ * @throws AppError 沙箱或正式环境已变更时要求重新登录。
  */
-export function sessionPaymentMode(session: {
-  provider: LoginProvider;
-  paymentMode: string;
-}): PaymentMode {
+export function sessionPaymentMode(
+  session: { paymentMode: string },
+  provider?: LoginProvider,
+): PaymentMode {
   if (session.paymentMode === "mock") {
     return "mock";
   }
 
+  const env = getEnv();
+
   if (
-    (session.paymentMode === "sandbox" || session.paymentMode === "live") &&
-    session.paymentMode === paymentMode(session.provider)
+    (session.paymentMode !== "sandbox" && session.paymentMode !== "live") ||
+    session.paymentMode !== env.PAYMENT_MODE
   ) {
-    return session.paymentMode;
+    throw new AppError("PAYMENT_UNAVAILABLE", "支付环境已变更，请重新登录");
   }
 
-  throw new AppError("PAYMENT_UNAVAILABLE", "当前入口对应的支付环境未启用，请重新选择入口");
+  return provider ? paymentMode(provider) : session.paymentMode;
+}
+
+/** 判断当前会话是否有模拟付款方式，供余额展示和调整使用。 */
+export function hasMockPayment(session: { paymentMode: string }): boolean {
+  return (
+    sessionPaymentMode(session, "wechat") === "mock" ||
+    sessionPaymentMode(session, "alipay") === "mock"
+  );
 }

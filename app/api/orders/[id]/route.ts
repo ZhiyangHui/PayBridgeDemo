@@ -24,7 +24,7 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
     let order = await ownOrder(getDb(), session.user.id, (await context.params).id);
 
     // 模拟会话查看旧沙箱订单时只读本站记录，不触发远程查单。
-    if (order.provider !== session.provider || order.mode !== sessionPaymentMode(session)) {
+    if (order.mode !== sessionPaymentMode(session, order.provider)) {
       return Response.json({ status: order.status }, { headers: { "Cache-Control": "no-store" } });
     }
 

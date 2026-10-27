@@ -32,9 +32,9 @@ ALIPAY_NOTIFY_URL=${APP_URL}/api/pay/alipay/notify
 ALIPAY_RETURN_URL=${APP_URL}/orders
 ```
 
-打开公网地址 → 选“支付宝沙箱” → 登录本站账号 → 买商品 → 用沙箱版支付宝付款 → 查看订单。地址变了就改配置并重启。
+打开公网地址 → 支付宝登录 → 沙箱 → 登录本站账号 → 买商品 → 结算选择支付宝沙箱付款 → 用沙箱版支付宝付款 → 查看订单。地址变了就改配置并重启。
 
-Open the public URL → choose Alipay sandbox → sign in locally → buy an item → pay with the sandbox Alipay app → check the order. Update configuration and restart if the tunnel URL changes.
+Open the public URL → Alipay login → sandbox → sign in with a local account → buy an item → choose Alipay sandbox at checkout → pay with the sandbox Alipay app → check the order. Update configuration and restart if the tunnel URL changes.
 
 网站先创建订单，收到通知后验签并更新状态；漏通知时查单补回。浏览器跳回来不算付款凭证。
 
@@ -42,13 +42,13 @@ The site creates an order first, verifies the payment notification, then updates
 
 ## 微信 / WeChat
 
-目前用模拟模式。网站应用 OAuth 和 API v3 Native 代码已有，但缺公司应用和商户凭据，尚未真实联调，首页真实入口也未开放。
+目前用模拟模式。网站应用 OAuth 和 API v3 Native 代码已有，但缺公司应用和商户凭据，尚未真实联调；首页提供模拟入口，沙箱按钮暂不可用。
 
-Use mock mode for now. Website OAuth and API v3 Native code exist, but company app and merchant credentials are missing. Live testing is pending, and the homepage has no active live entry.
+Use mock mode for now. Website OAuth and API v3 Native code exist, but company app and merchant credentials are missing. Live testing is pending; the homepage offers mock login; the sandbox button is unavailable.
 
-拿到凭据后，按 `.env.example` 填微信应用、商户、API v3 密钥、证书序列号和验签公钥。保留 `PAYMENT_MODE=sandbox`，设 `WECHAT_MODE=live`，配置公网通知地址和网站授权回调域名。还要接好真实入口再测试；真实微信付款会扣真钱。
+拿到凭据后，按 `.env.example` 填微信应用、商户、API v3 密钥、证书序列号和验签公钥。保留 `PAYMENT_MODE=sandbox`，设 `WECHAT_MODE=live`，配置公网通知地址和网站授权回调域名。配置完整后，可通过 `/api/auth/wechat/start` 发起真实登录；真实微信付款会扣真钱。
 
-Once credentials are available, fill in the WeChat app, merchant, API v3 key, certificate serial, and verification key fields from `.env.example`. Keep `PAYMENT_MODE=sandbox`, set `WECHAT_MODE=live`, and configure the public notification URL and website callback domain. Connect the live entry before testing; live WeChat payments use real money.
+Once credentials are available, fill in the WeChat app, merchant, API v3 key, certificate serial, and verification key fields from `.env.example`. Keep `PAYMENT_MODE=sandbox`, set `WECHAT_MODE=live`, and configure the public notification URL and website callback domain. After configuration, use `/api/auth/wechat/start` for live login; live WeChat payments use real money.
 
 `PAYMENT_MODE=mock` 时全部模拟。支付宝正式付款尚未实现，不要把 `live` 当成已经可用。
 

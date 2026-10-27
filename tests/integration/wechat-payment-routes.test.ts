@@ -139,20 +139,32 @@ async function act(id: string, action = "pay") {
 }
 
 /** 从实际登录入口走到回调，验证入口选择不会被表单里的模式覆盖。 */
-async function enterAlipay(sandbox: boolean, intent = "register") {
-  const path = sandbox ? "/api/auth/alipay/sandbox/start" : "/api/auth/alipay/start";
+async function enterAlipay(
+  sandbox: boolean,
+  intent = "register",
+  provider: "wechat" | "alipay" = "alipay",
+  selection?: "mock" | "sandbox",
+) {
+  if (!selection) {
+    vi.stubEnv("PAYMENT_MODE", sandbox ? "sandbox" : "mock");
+  }
+
+  const path =
+    selection === "sandbox"
+      ? "/api/auth/alipay/sandbox/start"
+      : `/api/auth/${provider}/start${selection === "mock" ? "?mode=mock" : ""}`;
   const response = await startLogin(
     new NextRequest(origin + path, { headers: { host: "localhost:3000" } }),
-    "alipay",
-    sandbox,
+    provider,
+    selection === "sandbox",
   );
   const target = new URL(response.headers.get("location")!);
   expect(target.origin).toBe(origin);
-  expect(target.pathname).toBe("/mock/login/alipay");
-  const browserCookie = response.cookies.get("oauth_alipay")!.value;
-  const auth = new NextRequest(origin + "/api/mock/auth/alipay", {
+  expect(target.pathname).toBe(`/mock/login/${provider}`);
+  const browserCookie = response.cookies.get(`oauth_${provider}`)!.value;
+  const auth = new NextRequest(origin + `/api/mock/auth/${provider}`, {
     method: "POST",
-    headers: { origin, cookie: `oauth_alipay=${browserCookie}` },
+    headers: { origin, cookie: `oauth_${provider}=${browserCookie}` },
     body: new URLSearchParams({
       state: target.searchParams.get("state")!,
       intent,
@@ -162,14 +174,14 @@ async function enterAlipay(sandbox: boolean, intent = "register") {
       paymentMode: sandbox ? "mock" : "sandbox",
     }),
   });
-  const confirmed = await confirmMockLogin(auth, "alipay");
+  const confirmed = await confirmMockLogin(auth, provider);
   const callback = new URL(confirmed.headers.get("location")!);
   callback.searchParams.set("paymentMode", sandbox ? "mock" : "sandbox");
   const finished = await finishLogin(
     new NextRequest(callback, {
-      headers: { cookie: `oauth_alipay=${browserCookie}; paybridge_session=${browser.token}` },
+      headers: { cookie: `oauth_${provider}=${browserCookie}; paybridge_session=${browser.token}` },
     }),
-    "alipay",
+    provider,
   );
   expect(new URL(finished.headers.get("location")!).pathname).toBe("/dashboard");
   browser.token = finished.cookies.get("paybridge_session")!.value;
@@ -177,8 +189,73 @@ async function enterAlipay(sandbox: boolean, intent = "register") {
   return (await readSession(db, browser.token))!;
 }
 
+describe("登录页选择测试环境", () => {
+  it.each(["wechat", "alipay"] as const)(
+    "%s 模拟入口在沙箱配置下仍只扣本站余额",
+    async (provider) => {
+      vi.stubEnv("ALIPAY_LOGIN_MODE", "oauth");
+      const fetcher = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("禁止外网请求"));
+      const session = await enterAlipay(false, "register", provider, "mock");
+      expect(session.paymentMode).toBe("mock");
+
+      const response = await createPayment(
+        form("/api/pay/alipay/create", { checkoutKey: randomUUID() }),
+        "alipay",
+      );
+      expect(new URL(response.headers.get("location")!).pathname).toMatch(/^\/orders\//);
+      const order = await db.order.findFirstOrThrow();
+      expect(order.mode).toBe("mock");
+      expect(await act(order.id)).toBeNull();
+      expect(
+        (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+      ).toBe(99);
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
+
+  it("支付宝沙箱选项使用本站账号，不调用资料查询接口", async () => {
+    vi.stubEnv("ALIPAY_LOGIN_MODE", "oauth");
+    const fetcher = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("禁止外网请求"));
+    const session = await enterAlipay(true, "register", "alipay", "sandbox");
+    expect(session.paymentMode).toBe("sandbox");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("统一访问地址时保留模拟选择", async () => {
+    const response = await startLogin(
+      new NextRequest("http://127.0.0.1:3000/api/auth/alipay/start?mode=mock", {
+        headers: { host: "127.0.0.1:3000" },
+      }),
+      "alipay",
+    );
+    expect(response.headers.get("location")).toBe(origin + "/api/auth/alipay/start?mode=mock");
+  });
+
+  it("未配置沙箱时拒绝沙箱入口，也不能通过参数开启真实环境", async () => {
+    vi.stubEnv("PAYMENT_MODE", "mock");
+    const response = await startLogin(
+      new NextRequest(origin + "/api/auth/alipay/sandbox/start", {
+        headers: { host: "localhost:3000" },
+      }),
+      "alipay",
+      true,
+    );
+    expect(response.headers.get("location")).toContain("NOT_FOUND");
+
+    for (const mode of ["sandbox", "live", "unknown"]) {
+      const rejected = await startLogin(
+        new NextRequest(origin + `/api/auth/alipay/start?mode=${mode}`, {
+          headers: { host: "localhost:3000" },
+        }),
+        "alipay",
+      );
+      expect(rejected.headers.get("location")).toContain("INVALID_INPUT");
+    }
+  });
+});
+
 describe("支付宝模拟与沙箱隔离", () => {
-  it("两个入口都用本站账号，但会话分别保存 mock 和 sandbox，不接受回调覆盖", async () => {
+  it("两种环境在会话保存 mock 和 sandbox，不接受回调覆盖", async () => {
     const mock = await enterAlipay(false);
     expect(mock.paymentMode).toBe("mock");
     const sandbox = await enterAlipay(true, "login");
@@ -198,7 +275,7 @@ describe("支付宝模拟与沙箱隔离", () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it("只有沙箱入口生成支付宝沙箱收银台地址，且不扣模拟余额", async () => {
+  it("沙箱配置生成支付宝收银台地址，且不扣模拟余额", async () => {
     const keys = generateKeyPairSync("rsa", {
       modulusLength: 2048,
       privateKeyEncoding: { format: "pem", type: "pkcs8" },
@@ -242,7 +319,7 @@ describe("支付宝模拟与沙箱隔离", () => {
     expect(await db.order.count()).toBe(1);
   });
 
-  it("切换到沙箱入口后，旧模拟付款表单和旧模拟订单不能发起沙箱付款", async () => {
+  it("切换配置并重新登录后，旧模拟表单和订单不能发起沙箱付款", async () => {
     const session = await enterAlipay(false);
     const saved = await createMockOrder(db, session.user.id, "alipay", randomUUID());
     await enterAlipay(true, "login");
@@ -286,7 +363,7 @@ describe("支付宝模拟与沙箱隔离", () => {
     ).toBe(99);
   });
 
-  it("全局开启沙箱时，模拟登录仍创建模拟订单并只扣本站余额", async () => {
+  it("全局开启沙箱时，旧模拟会话仍只创建模拟订单并扣本站余额", async () => {
     const profile = await registerMockAccount(db, "alipay", "alipay_mock", "password123", "1.00");
     browser.token = await completeLogin(db, "alipay", profile);
     const response = await createPayment(
@@ -305,6 +382,73 @@ describe("支付宝模拟与沙箱隔离", () => {
       (await db.mockAccount.findUniqueOrThrow({ where: { id: profile.providerUserId } }))
         .balanceFen,
     ).toBe(99);
+  });
+});
+
+describe("登录与付款方式独立", () => {
+  it.each([
+    ["wechat", "wechat"],
+    ["wechat", "alipay"],
+    ["alipay", "wechat"],
+    ["alipay", "alipay"],
+  ] as const)("%s 登录可以选择 %s 付款，重复确认只扣一次", async (loginProvider, payProvider) => {
+    const session = await enterAlipay(false, "register", loginProvider);
+    const response = await createPayment(
+      form(`/api/pay/${payProvider}/create`, { checkoutKey: randomUUID() }),
+      payProvider,
+    );
+    const target = new URL(response.headers.get("location")!);
+    expect(target.pathname).toMatch(/^\/orders\//);
+    const order = await db.order.findUniqueOrThrow({
+      where: { id: target.pathname.split("/").at(-1)! },
+    });
+    expect(order).toMatchObject({ provider: payProvider, userId: session.user.id, mode: "mock" });
+    expect(await act(order.id)).toBeNull();
+    expect(await act(order.id)).toBeNull();
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+    ).toBe(99);
+    expect(await db.paymentNotification.count()).toBe(1);
+  });
+
+  it("微信模拟登录后可用支付宝沙箱，或选择微信模拟付款", async () => {
+    const pair = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { format: "pem", type: "pkcs8" },
+      publicKeyEncoding: { format: "pem", type: "spki" },
+    });
+    vi.stubEnv("ALIPAY_PRIVATE_KEY", pair.privateKey);
+    vi.stubEnv("ALIPAY_PUBLIC_KEY", pair.publicKey);
+    const session = await enterAlipay(true, "register", "wechat");
+    const sandbox = await createPayment(
+      form("/api/pay/alipay/create", { checkoutKey: randomUUID(), paymentMode: "sandbox" }),
+      "alipay",
+    );
+    expect(new URL(sandbox.headers.get("location")!).hostname).toBe(
+      "openapi-sandbox.dl.alipaydev.com",
+    );
+    expect((await db.order.findFirstOrThrow()).mode).toBe("sandbox");
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+    ).toBe(100);
+    const mock = await createOrder();
+    expect(await act(mock.id)).toBeNull();
+    await updateBalance(form("/api/mock/wallet", { balance: "2.00" }));
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+    ).toBe(200);
+  });
+
+  it("同一次结算切换渠道不会再建一笔订单，也不能换渠道继续原订单", async () => {
+    await enterAlipay(false);
+    const checkoutKey = randomUUID();
+    const first = await createPayment(form("/api/pay/wechat/create", { checkoutKey }), "wechat");
+    const second = await createPayment(form("/api/pay/alipay/create", { checkoutKey }), "alipay");
+    expect(second.headers.get("location")).toContain("CONFLICT");
+    const orderId = new URL(first.headers.get("location")!).pathname.split("/").at(-1)!;
+    const retry = await createPayment(form("/api/pay/alipay/create", { orderId }), "alipay");
+    expect(retry.headers.get("location")).toContain("PAYMENT_MODE_MISMATCH");
+    expect(await db.order.count()).toBe(1);
   });
 });
 
@@ -434,7 +578,7 @@ describe("微信模拟支付接口", () => {
     });
   });
 
-  it("拦截未登录、跨用户、跨渠道和外站付款请求", async () => {
+  it("拦截未登录、跨用户和外站付款请求", async () => {
     const order = await createOrder();
     browser.token = "";
     expect(await act(order.id)).toBe("UNAUTHENTICATED");
@@ -445,7 +589,7 @@ describe("微信模拟支付接口", () => {
       form("/api/pay/alipay/create", { checkoutKey: randomUUID() }),
       "alipay",
     );
-    expect(response.headers.get("location")).toContain("PAYMENT_CHANNEL_MISMATCH");
+    expect(response.headers.get("location")).toContain("/orders/");
     const foreign = await simulatePayment(
       form(`/api/mock/pay/${order.id}`, { action: "pay" }, "https://other.test"),
       order.id,

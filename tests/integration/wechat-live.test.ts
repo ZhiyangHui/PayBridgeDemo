@@ -157,7 +157,7 @@ beforeEach(async () => {
   await db.user.deleteMany();
   await db.oAuthState.deleteMany();
   userId = (await db.user.create({ data: { nickname: "测试用户" } })).id;
-  boundaries.session = { provider: "wechat", paymentMode: "live", user: { id: userId } };
+  boundaries.session = { provider: "wechat", paymentMode: "sandbox", user: { id: userId } };
   queryData = { code: "ORDER_NOT_EXIST" };
   queryStatus = 404;
   corruptSignature = false;
@@ -236,6 +236,17 @@ function checkout(data: Record<string, string>) {
 }
 
 describe("微信 Native 正式协议（临时密钥，本地响应）", () => {
+  it("支付宝登录用户也能创建微信 Native 订单并继续付款", async () => {
+    boundaries.session = { provider: "alipay", paymentMode: "sandbox", user: { id: userId } };
+    const response = await createPayment(checkout({ checkoutKey: randomUUID() }), "wechat");
+    const saved = await db.order.findFirstOrThrow();
+    expect(response.headers.get("location")).toBe(`https://shop.test/orders/${saved.id}`);
+    expect(saved).toMatchObject({ userId, provider: "wechat", mode: "live" });
+    const retry = await createPayment(checkout({ orderId: saved.id }), "wechat");
+    expect(retry.headers.get("location")).toBe(`https://shop.test/orders/${saved.id}`);
+    expect(await db.order.count()).toBe(1);
+  });
+
   it("下单入口先保存固定金额订单，生成付款码并复用提交键和二维码", async () => {
     const checkoutKey = randomUUID();
     const response = await createPayment(checkout({ checkoutKey }), "wechat");
@@ -407,7 +418,7 @@ describe("微信 Native 正式协议（临时密钥，本地响应）", () => {
     await expect(
       createWechatPayment(db, saved, { ...config, merchantId: "other" }),
     ).rejects.toMatchObject({ code: "PAYMENT_INVALID" });
-    boundaries.session = { provider: "wechat", paymentMode: "live", user: { id: "other" } };
+    boundaries.session = { provider: "wechat", paymentMode: "sandbox", user: { id: "other" } };
     expect(
       (await createPayment(checkout({ orderId: saved.id }), "wechat")).headers.get("location"),
     ).toContain("NOT_FOUND");
@@ -429,7 +440,7 @@ describe("微信真实登录路由", () => {
   });
 
   it("授权回调保存资料和安全会话，重复回调不重复换码", async () => {
-    const { state, browser } = await createLoginState(db, "wechat", "live");
+    const { state, browser } = await createLoginState(db, "wechat", "live", "sandbox");
     fetcher
       .mockResolvedValueOnce(
         Response.json({ access_token: "test-token", openid: "openid-test", scope: "snsapi_login" }),
@@ -453,7 +464,7 @@ describe("微信真实登录路由", () => {
   });
 
   it("拒绝跨浏览器回调，取消授权也不会换码", async () => {
-    const { state, browser } = await createLoginState(db, "wechat", "live");
+    const { state, browser } = await createLoginState(db, "wechat", "live", "sandbox");
     const url = `https://shop.test/api/auth/wechat/callback?state=${state}`;
     expect((await finishLogin(new NextRequest(url), "wechat")).headers.get("location")).toContain(
       "OAUTH_STATE_INVALID",

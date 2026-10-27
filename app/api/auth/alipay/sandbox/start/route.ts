@@ -4,7 +4,7 @@ import { startLogin } from "@/lib/auth/routes";
 export const runtime = "nodejs";
 
 /**
- * 发起本站账号登录，将本次会话的付款方式固定为支付宝沙箱。
+ * 发起本站账号登录，允许结算时选择支付宝沙箱付款。
  */
 export function GET(request: NextRequest) {
   return startLogin(request, "alipay", true);

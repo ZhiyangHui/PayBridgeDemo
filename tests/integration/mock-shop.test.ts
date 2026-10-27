@@ -211,34 +211,17 @@ describe("注册、余额与模拟支付", () => {
     );
   });
 
-  it.each(["wechat", "alipay"] as const)("%s 账号不能通过另一个渠道下单", async (provider) => {
+  it.each(["wechat", "alipay"] as const)("%s 登录后可以选择另一种方式付款", async (provider) => {
     const user = await account("alice", "1.00", provider);
-    const other = provider === "wechat" ? "alipay" : "wechat";
-    await expect(createMockOrder(db, user, other, randomUUID())).rejects.toMatchObject({
-      code: "PAYMENT_CHANNEL_MISMATCH",
-    });
-    expect(await db.order.count()).toBe(0);
-  });
-
-  it("旧的跨渠道待付款订单收到签名通知也不能扣款", async () => {
-    const user = await account();
-    const order = await db.order.create({
-      data: {
-        userId: user,
-        provider: "alipay",
-        mode: "mock",
-        outTradeNo: randomUUID(),
-        amountFen: 1,
-      },
-    });
-    await expect(pay(order)).rejects.toMatchObject({ code: "PAYMENT_CHANNEL_MISMATCH" });
-    expect((await ownOrder(db, user, order.id)).status).toBe("pending");
+    const payment = provider === "wechat" ? "alipay" : "wechat";
+    const order = await createMockOrder(db, user, payment, randomUUID());
+    await pay(order);
+    await pay(order);
+    expect((await ownOrder(db, user, order.id)).status).toBe("paid");
     expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
-      100,
+      99,
     );
-    expect(await db.paymentNotification.count()).toBe(0);
-    await cancelMockOrder(db, user, order.id);
-    expect((await ownOrder(db, user, order.id)).status).toBe("closed");
+    expect(await db.paymentNotification.count()).toBe(1);
   });
 
   it("两个并发订单不能透支同一个钱包", async () => {

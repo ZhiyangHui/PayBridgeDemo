@@ -1,5 +1,5 @@
-# 确认购买 / Checkout
+# 结算 / Checkout
 
-显示选中商品和当前渠道的付款按钮。
+登录后选择微信或支付宝付款，两者与登录渠道无关。按钮旁标明模拟、沙箱或真实付款，金额来自后端商品目录。
 
-Shows the selected product and the current provider’s pay button.
+After login, choose WeChat Pay or Alipay regardless of the login provider. Each button labels its payment mode; prices come from the server catalog.

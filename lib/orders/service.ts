@@ -8,8 +8,8 @@ import { findProduct } from "./catalog";
 
 /**
  * 为当前模拟账号创建选定商品的待付款订单。
- * 检查账号渠道，并按 checkoutKey 复用重复提交的订单。
- * @throws AppError 参数错误为 INVALID_INPUT；非模拟账号为 MOCK_ONLY；渠道不符为 PAYMENT_CHANNEL_MISMATCH；订单归属不符为 CONFLICT。
+ * 按用户读取模拟余额，并用 checkoutKey 复用重复提交的订单。
+ * @throws AppError 参数错误为 INVALID_INPUT；非模拟账号为 MOCK_ONLY；订单归属不符为 CONFLICT。
  */
 export async function createMockOrder(
   db: PrismaClient,
@@ -27,10 +27,6 @@ export async function createMockOrder(
 
   if (!account) {
     throw new AppError("MOCK_ONLY");
-  }
-
-  if (account.provider !== provider) {
-    throw new AppError("PAYMENT_CHANNEL_MISMATCH");
   }
 
   // 按目录读取金额，保存商品快照；客户端只传商品编号，不能指定金额。
@@ -110,7 +106,7 @@ export async function cancelMockOrder(db: PrismaClient, userId: string, id: stri
 /**
  * 根据已验签的通知完成模拟付款：核对订单、扣余额、保存付款结果。
  * 以上操作在同一事务中执行，任一步失败都会回滚；相同交易已处理时直接返回。
- * @throws AppError 通知与订单不符为 PAYMENT_INVALID，渠道不符为 PAYMENT_CHANNEL_MISMATCH，状态冲突为 CONFLICT，余额不足为 INSUFFICIENT_BALANCE。
+ * @throws AppError 通知与订单不符为 PAYMENT_INVALID，模拟钱包缺失为 MOCK_ONLY，状态冲突为 CONFLICT，余额不足为 INSUFFICIENT_BALANCE。
  */
 export async function settleMockPayment(db: PrismaClient, notice: PaymentNotice) {
   return db.$transaction(async (tx) => {
@@ -133,10 +129,11 @@ export async function settleMockPayment(db: PrismaClient, notice: PaymentNotice)
       return;
     }
 
+    // 模拟余额属于本站用户，与本次选择微信还是支付宝付款无关。
     const account = await tx.mockAccount.findUnique({ where: { userId: order.userId } });
 
-    if (!account || account.provider !== notice.provider) {
-      throw new AppError("PAYMENT_CHANNEL_MISMATCH");
+    if (!account) {
+      throw new AppError("MOCK_ONLY");
     }
 
     // 尝试把待付款订单改为已支付；条件更新用于拦截重复或并发处理。

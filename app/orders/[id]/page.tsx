@@ -44,8 +44,7 @@ export default async function OrderDetail({
     notFound();
   }
 
-  const matchesSession =
-    order.provider === session.provider && order.mode === sessionPaymentMode(session);
+  const matchesSession = order.mode === sessionPaymentMode(session, order.provider);
   const mock = matchesSession && order.mode === "mock";
   const sandbox =
     matchesSession && order.mode === "sandbox" && paymentMode(order.provider) === "sandbox";
@@ -62,11 +61,9 @@ export default async function OrderDetail({
       ? await QRCode.toDataURL(order.paymentUrl, { width: 240, margin: 1 })
       : null;
   const pending = mock && order.status === "pending";
-  // 确认付款按钮只开放给与订单支付渠道一致的登录会话。
-  const canPay = pending && order.provider === session.provider;
   // 这里的模拟二维码指向本站订单页，不是微信平台生成的真实付款码。
   const qr =
-    canPay && order.provider === "wechat"
+    pending && order.provider === "wechat"
       ? await QRCode.toDataURL(new URL(`/orders/${order.id}`, getEnv().APP_URL).toString(), {
           width: 180,
           margin: 1,
@@ -94,12 +91,9 @@ export default async function OrderDetail({
       </dl>
       <FormMessage code={(await searchParams).error} />
       {!matchesSession && order.status === "pending" && (
-        <p className={styles.muted}>该订单与当前入口不同，请从首页对应入口重新登录后付款。</p>
+        <p className={styles.muted}>该订单的支付环境与当前会话不同，请确认配置后重新登录。</p>
       )}
       {wallet && <p className={styles.muted}>模拟余额 ¥{formatMoney(wallet.balanceFen)}</p>}
-      {pending && !canPay && (
-        <p className={styles.muted}>该订单与登录渠道不一致，请取消后重新下单。</p>
-      )}
       {pending && (
         <>
           {qr && (
@@ -121,11 +115,9 @@ export default async function OrderDetail({
             className={styles.row}
             style={{ marginTop: "1.5rem" }}
           >
-            {canPay && (
-              <button className={styles.button} name="action" value="pay">
-                确认支付 ¥{formatMoney(order.amountFen)}
-              </button>
-            )}
+            <button className={styles.button} name="action" value="pay">
+              确认支付 ¥{formatMoney(order.amountFen)}
+            </button>
             <button className={`${styles.button} ${styles.secondary}`} name="action" value="cancel">
               取消订单
             </button>
@@ -146,7 +138,7 @@ export default async function OrderDetail({
             />
           )}
           <p className={styles.muted}>使用微信扫码付款，确认后页面会自动更新。</p>
-          {!liveQr && session.provider === "wechat" && (
+          {!liveQr && (
             <form action="/api/pay/wechat/create" method="post">
               <input type="hidden" name="paymentMode" value={order.mode} />
               <input type="hidden" name="orderId" value={order.id} />
@@ -161,13 +153,11 @@ export default async function OrderDetail({
           <p className={styles.muted}>
             等待支付宝确认。若已付款，页面会自动更新；关闭收银台不会立即取消订单。
           </p>
-          {session.provider === "alipay" && (
-            <form action="/api/pay/alipay/create" method="post">
-              <input type="hidden" name="paymentMode" value={order.mode} />
-              <input type="hidden" name="orderId" value={order.id} />
-              <button className={styles.button}>继续支付宝沙箱付款</button>
-            </form>
-          )}
+          <form action="/api/pay/alipay/create" method="post">
+            <input type="hidden" name="paymentMode" value={order.mode} />
+            <input type="hidden" name="orderId" value={order.id} />
+            <button className={styles.button}>继续支付宝沙箱付款</button>
+          </form>
           <OrderPoller id={order.id} />
         </>
       )}

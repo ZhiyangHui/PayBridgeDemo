@@ -1,5 +1,5 @@
-# 进入支付宝沙箱 / Enter Alipay sandbox
+# 沙箱登录 / Sandbox login
 
-GET 跳转本站登录页，并把这次会话的付款方式设为支付宝沙箱。
+通过本站账号登录，开启支付宝沙箱付款。服务端必须已配置沙箱。
 
-GET opens the local login page and sets this session to use Alipay sandbox payments.
+Sign in with a local account for Alipay sandbox payments. Sandbox must be configured on the server.

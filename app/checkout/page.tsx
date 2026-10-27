@@ -12,8 +12,8 @@ import styles from "@/components/shop.module.css";
 export const dynamic = "force-dynamic";
 
 /**
- * 显示测试商品金额和当前登录渠道的付款按钮。
- * 未登录时返回首页，尚未开放的正式支付模式返回商店。
+ * 显示测试商品和两种付款方式，付款渠道与登录渠道无关。
+ * 未登录时返回首页，尚未实现的支付方式显示为不可用。
  * 每次渲染生成提交键，用于服务端识别重复下单；错误码通过表单提示组件展示。
  */
 export default async function Checkout({
@@ -28,10 +28,6 @@ export default async function Checkout({
   }
 
   const mode = sessionPaymentMode(session);
-
-  if (mode === "live" && session.provider !== "wechat") {
-    redirect("/dashboard");
-  }
 
   const query = await searchParams;
   let product;
@@ -51,24 +47,31 @@ export default async function Checkout({
       <h1 className={styles.heading}>确认购买</h1>
       <p>{product.name}</p>
       <p className={styles.price}>¥{formatMoney(product.amountFen)}</p>
-      {mode === "sandbox" && (
-        <p className={styles.muted}>使用支付宝沙箱买家账号付款，不扣本站模拟余额。</p>
-      )}
-      {mode === "live" && (
-        <p className={styles.muted}>
-          使用微信扫码付款，将支付真实的 ¥{formatMoney(product.amountFen)}。
-        </p>
-      )}
       <FormMessage code={query.error} />
       <div className={styles.row}>
-        <form action={`/api/pay/${session.provider}/create`} method="post">
-          <input type="hidden" name="paymentMode" value={mode} />
-          <input type="hidden" name="productId" value={product.id} />
-          <input type="hidden" name="checkoutKey" value={checkoutKey} />
-          <button className={styles.button}>
-            {session.provider === "wechat" ? "微信支付" : "支付宝支付"}
-          </button>
-        </form>
+        {(["wechat", "alipay"] as const).map((provider) => {
+          const selectedMode = sessionPaymentMode(session, provider);
+          const unavailable = provider === "alipay" && selectedMode === "live";
+          const descriptions = {
+            mock: "模拟付款，仅扣本站余额",
+            sandbox: "沙箱付款，跳转支付宝官方收银台",
+            live: "真实付款，会扣真实账户余额",
+          };
+
+          return (
+            <form action={`/api/pay/${provider}/create`} method="post" key={provider}>
+              <input type="hidden" name="paymentMode" value={selectedMode} />
+              <input type="hidden" name="productId" value={product.id} />
+              <input type="hidden" name="checkoutKey" value={checkoutKey} />
+              <button className={styles.button} disabled={unavailable}>
+                {provider === "wechat" ? "微信支付" : "支付宝支付"}
+              </button>
+              <p className={styles.muted}>
+                {unavailable ? "支付宝正式付款尚未接入" : descriptions[selectedMode]}
+              </p>
+            </form>
+          );
+        })}
       </div>
     </PageShell>
   );

@@ -1,5 +1,5 @@
 # 模拟余额 / Mock balance
 
-POST 修改当前模拟会话对应账号的余额。
+修改当前用户的本站余额；只要当前环境允许模拟付款就可使用，与登录渠道无关。
 
-POST changes the balance of the account in the current mock session.
+Updates the user’s local balance whenever mock payment is enabled, regardless of the login provider.

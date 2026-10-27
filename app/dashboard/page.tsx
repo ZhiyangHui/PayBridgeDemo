@@ -2,7 +2,7 @@ import Link from "next/link";
 import { UserAvatar } from "@/components/UserAvatar";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/lib/session";
-import { sessionPaymentMode } from "@/lib/payments/mode";
+import { sessionPaymentMode, hasMockPayment } from "@/lib/payments/mode";
 import { getDb } from "@/lib/db";
 import { formatMoney } from "@/lib/orders/money";
 import { TEST_PRODUCTS } from "@/lib/orders/catalog";
@@ -30,14 +30,14 @@ export default async function Dashboard({
   }
 
   const mode = sessionPaymentMode(session);
-  const mock = mode === "mock";
-  // 仅模拟付款读取本地钱包，沙箱付款不显示或使用该余额。
+  const mock = hasMockPayment(session);
+  // 只要有模拟付款方式就显示本站余额，平台付款不会使用该余额。
   const account = mock
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
 
   return (
-    <PageShell mode={mock ? "MOCK MODE" : mode.toUpperCase()}>
+    <PageShell mode={mode === "mock" ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
       <div className={styles.profile}>
         <UserAvatar src={session.user.avatar} provider={session.provider} />
@@ -74,13 +74,15 @@ export default async function Dashboard({
         </section>
       )}
       {mock && !account && <p className={styles.muted}>请退出后注册模拟账号，开始购买。</p>}
-      {mode === "sandbox" && <p className={styles.muted}>付款使用支付宝沙箱余额。</p>}
+      {mode === "sandbox" && (
+        <p className={styles.muted}>微信与支付宝可在结算时选择，付款模式以按钮旁说明为准。</p>
+      )}
       <div className={styles.products}>
         {TEST_PRODUCTS.map((product) => (
           <section className={styles.card} key={product.id}>
             <h2>{product.name}</h2>
             <p className={styles.price}>¥{formatMoney(product.amountFen)}</p>
-            {account || mode === "sandbox" || (mode === "live" && session.provider === "wechat") ? (
+            {account || mode === "sandbox" || mode === "live" ? (
               <Link className={styles.button} href={`/checkout?product=${product.id}`}>
                 购买
               </Link>

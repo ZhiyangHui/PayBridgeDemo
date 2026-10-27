@@ -10,7 +10,7 @@ import { createMockOrder, ownOrder, cancelMockOrder, setMockBalance } from "../o
 import { getMockPaymentKeys } from "./mock-keys";
 import { mockPaymentNotification } from "./mock-provider";
 import { handleMockNotification } from "./handler";
-import { paymentMode, sessionPaymentMode } from "./mode";
+import { paymentMode, sessionPaymentMode, hasMockPayment } from "./mode";
 import { findProduct } from "../orders/catalog";
 import { createRemoteOrder } from "../orders/remote";
 import { createWechatPayment, handleWechatNotification, wechatPaymentConfig } from "../wechat";
@@ -19,7 +19,7 @@ import { alipayPaymentConfig, alipayCheckoutUrl, handleAlipayNotification } from
 import type { LoginProvider } from "../auth/types";
 
 /**
- * 检查请求来源、登录状态和当前登录渠道的支付模式。
+ * 检查请求来源、登录状态和会话是否允许模拟付款。
  * @returns 当前登录会话，包含用户和登录渠道。
  * @throws AppError 非同源请求为 FORBIDDEN，未登录为 UNAUTHENTICATED，非模拟支付为 MOCK_ONLY。
  */
@@ -32,7 +32,7 @@ async function requireMockSession(request: NextRequest) {
     throw new AppError("UNAUTHENTICATED");
   }
 
-  if (sessionPaymentMode(session) !== "mock") {
+  if (!hasMockPayment(session)) {
     throw new AppError("MOCK_ONLY");
   }
 
@@ -68,15 +68,10 @@ export async function createPayment(request: NextRequest, provider: LoginProvide
       throw new AppError("UNAUTHENTICATED");
     }
 
-    // 付款渠道必须与当前登录渠道一致。
-    if (provider !== session.provider) {
-      throw new AppError("PAYMENT_CHANNEL_MISMATCH");
-    }
-
     const form = await request.formData();
     const productId = findProduct(String(form.get("productId") ?? "test-item")).id;
     failurePath = `/checkout?product=${encodeURIComponent(productId)}`;
-    const mode = sessionPaymentMode(session);
+    const mode = sessionPaymentMode(session, provider);
 
     if (form.get("paymentMode") !== mode) {
       throw new AppError("PAYMENT_MODE_MISMATCH");
@@ -164,7 +159,7 @@ export async function simulatePayment(request: NextRequest, id: string) {
     const session = await requireMockSession(request);
     const order = await ownOrder(getDb(), session.user.id, id);
 
-    if (order.mode !== "mock") {
+    if (order.mode !== "mock" || sessionPaymentMode(session, order.provider) !== "mock") {
       throw new AppError("MOCK_ONLY");
     }
 
@@ -174,11 +169,7 @@ export async function simulatePayment(request: NextRequest, id: string) {
     if (action === "cancel") {
       await cancelMockOrder(getDb(), session.user.id, id);
     } else if (action === "pay") {
-      if (order.provider !== session.provider) {
-        throw new AppError("PAYMENT_CHANNEL_MISMATCH");
-      }
-
-      const keys = getMockPaymentKeys(order.provider, sessionPaymentMode(session));
+      const keys = getMockPaymentKeys(order.provider, sessionPaymentMode(session, order.provider));
       const notification = mockPaymentNotification(order, keys);
       // 构造通知请求并调用共用处理器，不能由按钮直接将订单改为已支付。
       const incoming = new Request(new URL(`/api/pay/${order.provider}/notify`, getEnv().APP_URL), {

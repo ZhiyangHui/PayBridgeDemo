@@ -29,7 +29,10 @@ import type { LoginProfile, LoginProvider, PaymentMode } from "./types";
 export function isMockLogin(provider: LoginProvider): boolean {
   const env = getEnv();
 
-  return provider === "wechat" ? env.WECHAT_MODE === "mock" : env.ALIPAY_LOGIN_MODE === "mock";
+  return (
+    env.PAYMENT_MODE === "mock" ||
+    (provider === "wechat" ? env.WECHAT_MODE === "mock" : env.ALIPAY_LOGIN_MODE === "mock")
+  );
 }
 
 /**
@@ -59,7 +62,7 @@ function loginFailure(cause: unknown) {
 /**
  * 创建一次登录请求，并跳转模拟登录页或对应平台的官方授权页。
  * 保存授权 state 和浏览器绑定信息，将绑定值写入 Cookie。
- * @param sandbox 为 true 时使用本站账号登录，并将本次支付模式固定为支付宝沙箱。
+ * @param sandbox 进入支付宝沙箱付款；必须已在服务端启用沙箱配置。
  * @returns 登录页的重定向；配置或渠道不支持时跳到登录失败页。
  */
 export async function startLogin(request: NextRequest, provider: LoginProvider, sandbox = false) {
@@ -67,26 +70,34 @@ export async function startLogin(request: NextRequest, provider: LoginProvider, 
     const env = getEnv();
     const path = sandbox ? "/api/auth/alipay/sandbox/start" : `/api/auth/${provider}/start`;
     const canonical = new URL(path, env.APP_URL);
+    const requestedMode = request.nextUrl.searchParams.get("mode");
+
+    // 只接受明确的模拟选择；沙箱需走专用入口并检查服务端配置。
+    if (requestedMode !== null && (requestedMode !== "mock" || sandbox)) {
+      throw new AppError("INVALID_INPUT");
+    }
+
+    const mock = requestedMode === "mock";
+
+    if (mock) {
+      canonical.searchParams.set("mode", "mock");
+    }
 
     // 统一 localhost 和 127.0.0.1 等访问地址，防止回调丢失 Cookie。
     if (request.headers.get("host") !== canonical.host) {
       return NextResponse.redirect(canonical);
     }
 
-    if (
-      sandbox &&
-      (provider !== "alipay" || env.PAYMENT_MODE !== "sandbox" || !isMockLogin(provider))
-    ) {
+    if (sandbox && (provider !== "alipay" || env.PAYMENT_MODE !== "sandbox")) {
       throw new AppError("NOT_FOUND");
     }
 
-    // 授权方式与支付模式分别保存：模拟账号既能用于模拟付款，也能用于沙箱付款。
+    // 将入口选择保存到授权记录，表单和回调都不能覆盖它。
     let mode: PaymentMode = "mock";
-    let paymentMode: PaymentMode = sandbox ? "sandbox" : "mock";
+    const paymentMode = mock ? "mock" : env.PAYMENT_MODE;
 
-    if (!sandbox && !isMockLogin(provider)) {
+    if (!mock && !sandbox && !isMockLogin(provider)) {
       mode = provider === "wechat" ? "live" : env.PAYMENT_MODE;
-      paymentMode = mode;
 
       if (provider === "wechat") {
         wechatLoginConfig();
@@ -134,7 +145,7 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
     );
 
     const mode = attempt.mode;
-    const paymentMode = sessionPaymentMode({ provider, paymentMode: attempt.paymentMode });
+    const paymentMode = sessionPaymentMode({ paymentMode: attempt.paymentMode });
 
     // 平台返回取消授权时结束登录，不继续读取授权码。
     if (request.nextUrl.searchParams.has("error")) {
@@ -154,7 +165,7 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
     let profile: LoginProfile;
 
     // 按该次登录记录的模式换取资料，不能由回调参数指定登录方式。
-    if (mode === "mock" && isMockLogin(provider)) {
+    if (mode === "mock") {
       profile = exchangeMockCode(code, provider, state, getEnv().SESSION_SECRET);
     } else if (provider === "wechat" && mode === "live") {
       if (getEnv().WECHAT_MODE !== "live") {
@@ -203,10 +214,6 @@ export async function confirmMockLogin(request: NextRequest, provider: LoginProv
   let intent = "login";
 
   try {
-    if (!isMockLogin(provider)) {
-      throw new AppError("NOT_FOUND");
-    }
-
     requireSameOrigin(request);
     const form = await request.formData();
     state = String(form.get("state") ?? "");

@@ -52,7 +52,7 @@ model AuthIdentity {
 
 /// 保存登录会话所属用户、登录渠道、令牌哈希和过期时间；不保存原始令牌。
 model Session {
-  /// 本次登录入口选择的支付模式；旧会话默认模拟，不能被全局配置升级。
+  /// 登录时的支付环境；付款渠道另选，旧模拟会话不会被全局配置升级。
   paymentMode String @default("mock")
   /// 记录本次登录渠道，旧会话默认按微信处理。
   provider  Provider @default(wechat)
@@ -69,7 +69,7 @@ model Session {
 
 /// 保存一次登录的授权状态、浏览器绑定信息及有效期，回调成功消费后记录使用时间。
 model OAuthState {
-  /// 本次登录对应的支付模式，与授权方式分开保存，回调不能覆盖。
+  /// 登录时读取的支付环境，与授权方式分开保存，回调不能覆盖。
   paymentMode String @default("mock")
   /// 授权模式由服务端记录，回调不能通过参数切换模式。
   mode        String    @default("mock")
