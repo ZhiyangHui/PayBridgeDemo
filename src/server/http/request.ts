@@ -6,8 +6,11 @@ type RequestOptions = {
   method?: "GET" | "POST";
   headers?: HeadersInit;
   body?: string;
+  /** 单次请求超时，单位毫秒，默认 8000，最大 30000。 */
   timeoutMs?: number;
+  /** 首次失败后的额外尝试次数，默认 0，仅 GET 可设为 1 或 2。 */
   retries?: number;
+  /** 调用方提供的取消信号，取消后不重试。 */
   signal?: AbortSignal;
 };
 
@@ -17,7 +20,13 @@ const optionsSchema = z.object({
   retries: z.number().int().min(0).max(2),
 });
 
-/** 在超时范围内读取和校验 JSON，仅 GET 的暂时性网络错误允许重试。 */
+/**
+ * 发送 HTTP 请求，读取 JSON 并使用传入的 Zod 规则校验响应。
+ * @param schema 响应数据的校验规则，验证通过后返回其解析结果。
+ * @param options 请求方法、正文、超时毫秒数、重试次数和外部取消信号。
+ * 仅 GET 的网络错误和超时可重试，最多两次；POST 不自动重发。
+ * @throws AppError 参数错误为 INVALID_INPUT；取消、超时、网络和响应错误分别使用对应错误码。
+ */
 export async function requestJson<T>(
   url: string,
   schema: z.ZodType<T>,
@@ -37,6 +46,7 @@ export async function requestJson<T>(
   for (let attempt = 0; ; attempt++) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
+    // 合并超时与调用方取消信号，任何一个触发都会终止本次请求。
     const signal = options.signal
       ? AbortSignal.any([controller.signal, options.signal])
       : controller.signal;
@@ -64,12 +74,14 @@ export async function requestJson<T>(
 
       return result.data;
     } catch (cause) {
+      // 调用方主动取消优先处理，不进入网络错误重试。
       if (options.signal?.aborted) {
         throw new AppError("REQUEST_CANCELLED", undefined, { cause });
       }
 
       let error: AppError;
 
+      // 根据超时、已分类业务错误、JSON 解析错误和网络错误分别包装异常。
       if (controller.signal.aborted) {
         error = new AppError("UPSTREAM_TIMEOUT", undefined, { cause });
       } else if (cause instanceof AppError) {
@@ -79,6 +91,7 @@ export async function requestJson<T>(
         error = new AppError(code, undefined, { cause });
       }
 
+      // 重试次数用完，或错误不是超时和网络失败时，立即向上抛出。
       if (attempt >= retries || !["UPSTREAM_TIMEOUT", "UPSTREAM_NETWORK"].includes(error.code)) {
         throw error;
       }

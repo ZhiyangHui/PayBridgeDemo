@@ -1,8 +1,10 @@
+// 生成服务端 Prisma 客户端，输出目录由 Git 忽略。
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
+// 使用 SQLite，数据库文件地址在 prisma.config.ts 中读取。
 datasource db {
   provider = "sqlite"
 }
@@ -21,7 +23,7 @@ enum OrderStatus {
   closed
 }
 
-/// 本地用户资料。
+/// 保存本站用户昵称和头像，并关联平台身份、会话、订单及可选的模拟账号。
 model User {
   id          String         @id @default(cuid())
   nickname    String
@@ -34,47 +36,56 @@ model User {
   mockAccount MockAccount?
 }
 
-/// 关联平台身份，同一渠道用户只对应一个本地身份。
+/// 保存平台用户与本站用户的对应关系；渠道和平台用户 ID 的组合必须唯一。
 model AuthIdentity {
   id             String   @id @default(cuid())
   userId         String
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   provider       Provider
+  /// 该渠道返回的用户标识，用于查找或创建本站用户。
   providerUserId String
+  /// 可选的微信跨应用用户标识。
   unionId        String?
 
   @@unique([provider, providerUserId])
 }
 
-/// 保存会话令牌哈希与有效期，不保存明文令牌。
+/// 保存登录会话所属用户、登录渠道、令牌哈希和过期时间；不保存原始令牌。
 model Session {
   /// 记录本次登录渠道，旧会话默认按微信处理。
   provider  Provider @default(wechat)
   id        String   @id @default(cuid())
+  /// 浏览器会话令牌的 SHA256 哈希。
   tokenHash String   @unique
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 超过此时间后不再视为有效登录。
   expiresAt DateTime
 
   @@index([userId])
 }
 
-/// 绑定浏览器的一次性授权状态，防止伪造与重放。
+/// 保存一次登录的授权状态、浏览器绑定信息及有效期，回调成功消费后记录使用时间。
 model OAuthState {
   /// 授权模式由服务端记录，回调不能通过参数切换模式。
   mode        String    @default("mock")
   id          String    @id @default(cuid())
+  /// 授权链接中 state 值的 SHA256 哈希。
   stateHash   String    @unique
+  /// 授权 Cookie 中浏览器绑定值的 SHA256 哈希。
   browserHash String
   provider    Provider
   expiresAt   DateTime
+  /// 成功消费授权状态的时间，null 表示尚未使用。
   consumedAt  DateTime?
 }
 
-/// 保存服务端确定的金额和支付状态。
+/// 保存本站订单、固定金额、支付环境及平台交易结果；状态更新由后端处理。
 model Order {
   id              String                @id @default(cuid())
+  /// 本站生成并提交给支付平台的商户订单号。
   outTradeNo      String                @unique
+  /// 结算表单的提交键；同一键只创建一个订单，旧订单可为空。
   checkoutKey     String?               @unique
   /// 模拟订单与真实订单隔离，旧订单不视为模拟。
   mode            String                @default("live")
@@ -83,14 +94,18 @@ model Order {
   provider        Provider
   /// 金额单位为分，禁止浮点金额。
   amountFen       Int
+  /// 订单币种，当前流程仅使用 CNY。
   currency        String                @default("CNY")
   status          OrderStatus           @default(pending)
+  /// 支付平台返回的交易号，未确认交易时可为空。
   providerTradeNo String?
   /// 下单时锁定收款应用和商户，避免切换配置后串单。
   paymentAppId    String?
+  /// 下单时保存的收款商户 ID，用于核对通知或查单结果。
   paymentSellerId String?
   /// 控制向平台查单的频率，避免多窗口重复查询。
   lastQueriedAt   DateTime?
+  /// 确认支付成功的时间，待付款或已关闭时为空。
   paidAt          DateTime?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
@@ -100,25 +115,30 @@ model Order {
   @@index([userId, createdAt])
 }
 
-/// 记录通知处理结果，用唯一标识保证幂等。
+/// 保存已处理的支付通知或查单结果，通过渠道和去重标识避免重复记账。
 model PaymentNotification {
   id        String   @id @default(cuid())
   provider  Provider
+  /// 平台通知 ID 或由查单结果生成的标识，同一渠道下必须唯一。
   dedupeKey String
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id])
+  /// 本次已保存的处理结果，例如 paid 或 closed。
   result    String
   createdAt DateTime @default(now())
 
   @@unique([provider, dedupeKey])
 }
 
-/// 模拟平台账号和余额，密码只保存加盐哈希，金额单位为分。
+/// 保存分渠道的模拟账号、密码哈希及模拟余额，并关联一个本站用户。
 model MockAccount {
   id           String   @id
   provider     Provider
+  /// 规范化为小写的账号名，同一渠道内唯一。
   username     String
+  /// 随机盐与 scrypt 密码哈希，以冒号连接。
   passwordHash String
+  /// 模拟钱包余额，单位为分，不代表任何真实平台余额。
   balanceFen   Int      @default(0)
   userId       String   @unique
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)

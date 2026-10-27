@@ -2,7 +2,10 @@ import Link from "next/link";
 import { PageShell } from "@/components/PageShell";
 import { errorDefinitions } from "@/server/errors/app-error";
 
-/** 登录失败只展示固定提示和追踪 ID，不渲染第三方错误正文。 */
+/**
+ * 根据 URL 中的错误码显示固定的登录失败提示。
+ * 只接受已定义的错误码和格式正确的追踪编号，未知错误显示通用提示。
+ */
 export default async function LoginError({
   searchParams,
 }: {

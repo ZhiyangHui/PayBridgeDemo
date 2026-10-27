@@ -39,12 +39,19 @@ const wechatFields = [
   "WECHAT_PAY_NOTIFY_URL",
 ];
 
-/** 识别示例占位值，避免把模板配置用于真实接入。 */
+/**
+ * 检查配置值是否仍是 replace、your、example 等示例占位内容。
+ * 忽略大小写及首尾空白，匹配到占位前缀时返回 true。
+ */
 function isPlaceholder(value: string): boolean {
   return /^(replace[-_]|your[-_]|change[-_]?me|placeholder|example|todo)/i.test(value.trim());
 }
 
-/** 校验回调地址，避免凭据进入 URL，真实通知必须可通过 HTTPS 访问。 */
+/**
+ * 检查字符串是否为允许的 HTTP 或 HTTPS 地址。
+ * @param httpsOnly 为 true 时只接受 HTTPS。
+ * @returns 地址有效且不含用户名、密码和片段时返回 true；解析失败返回 false。
+ */
 function validUrl(value: string | undefined, httpsOnly = false): boolean {
   try {
     const url = new URL(value ?? "");
@@ -60,7 +67,13 @@ function validUrl(value: string | undefined, httpsOnly = false): boolean {
   }
 }
 
-/** 校验模式、必要凭据和网关，错误只列变量名，不回显值。 */
+/**
+ * 读取并校验运行模式、数据库地址、会话密钥及各平台必填配置。
+ * 按支付模式决定需要检查的凭据，并补齐微信模式和支付宝登录模式的默认值。
+ * @param source 环境变量键值表，通常为 process.env。
+ * @returns 可用于业务判断的基础配置，不包含平台私钥等原始凭据。
+ * @throws AppError 缺项、占位值或格式错误时抛出 CONFIG_ERROR，提示中只列变量名。
+ */
 export function parseEnv(source: Record<string, string | undefined>) {
   const result = schema.safeParse(source);
 
@@ -72,8 +85,10 @@ export function parseEnv(source: Record<string, string | undefined>) {
   }
 
   const config = result.data;
+  // 全站 mock 时微信也用 mock；支付宝沙箱模式允许单独选择微信模式。
   const wechatMode = config.PAYMENT_MODE === "sandbox" ? config.WECHAT_MODE : config.PAYMENT_MODE;
 
+  // 仅收集当前启用环境需要的凭据，模拟环境不强制提供真实平台密钥。
   const required = [
     ...(config.PAYMENT_MODE !== "mock" ? alipayFields : []),
     ...(wechatMode === "live" ? wechatFields : []),
@@ -86,6 +101,7 @@ export function parseEnv(source: Record<string, string | undefined>) {
     invalid.add("APP_URL");
   }
 
+  // 真实请求必须使用当前支付环境对应的网关，并提供 HTTPS 支付回调地址。
   if (config.PAYMENT_MODE !== "mock") {
     const gateway =
       config.PAYMENT_MODE === "sandbox"
@@ -107,6 +123,7 @@ export function parseEnv(source: Record<string, string | undefined>) {
     invalid.add("ALIPAY_SELLER_ID");
   }
 
+  // 正式支付环境不允许使用支付宝模拟登录。
   if (config.PAYMENT_MODE === "live" && config.ALIPAY_LOGIN_MODE === "mock") {
     invalid.add("ALIPAY_LOGIN_MODE");
   }
@@ -121,6 +138,7 @@ export function parseEnv(source: Record<string, string | undefined>) {
     }
   }
 
+  // 统一报告所有配置问题，只输出变量名，不打印环境变量的内容。
   if (invalid.size) {
     throw new AppError("CONFIG_ERROR", `环境配置有误：${[...invalid].join(", ")}`);
   }
@@ -133,7 +151,10 @@ export function parseEnv(source: Record<string, string | undefined>) {
   };
 }
 
-/** 读取服务端环境，禁止向页面传递原始密钥。 */
+/**
+ * 校验当前进程的环境变量，返回基础运行配置。
+ * @throws AppError 配置不完整或无效时抛出 CONFIG_ERROR。
+ */
 export function getEnv() {
   return parseEnv(process.env);
 }

@@ -3,7 +3,9 @@ import { logout } from "@/server/auth/routes";
 
 export const runtime = "nodejs";
 
-/** 通过同源 POST 撤销当前会话。 */
+/**
+ * 接收退出登录请求，撤销会话、清除 Cookie 后跳回首页。
+ */
 export function POST(request: NextRequest) {
   return logout(request);
 }

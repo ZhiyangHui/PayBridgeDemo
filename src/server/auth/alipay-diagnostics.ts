@@ -1,6 +1,10 @@
 import "server-only";
 
-/** 去掉错误说明中的凭据、URL 和身份数据，只保留有助排查的短文本。 */
+/**
+ * 清理平台错误说明中的敏感内容，并限制文本长度。
+ * 移除指定秘密及其 URL 编码形式，再隐藏链接、邮箱、凭据字段和长标识。
+ * @returns 最多 300 个字符的脱敏文本；输入不是字符串时返回 undefined。
+ */
 export function redactAlipayMessage(value: unknown, secrets: string[]): string | undefined {
   if (typeof value !== "string") {
     return undefined;

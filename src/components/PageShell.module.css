@@ -1,3 +1,4 @@
+/* 公共页面宽度与外围留白。 */
 .page {
   max-width: 48rem;
   margin: 0 auto;
@@ -19,6 +20,7 @@
   font-size: 1.25rem;
 }
 
+/* 显示 MOCK MODE 或 SANDBOX 等运行环境标识。 */
 .badge {
   background: var(--color-warning-bg);
   color: var(--color-warning-text);
@@ -27,6 +29,7 @@
   font-size: 0.875rem;
 }
 
+/* 页面主体的白色内容容器。 */
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
@@ -34,6 +37,7 @@
   padding: 2rem;
 }
 
+/* 窄屏减少边距，保留可用内容宽度。 */
 @media (max-width: 480px) {
   .page {
     padding: 2rem 1rem;

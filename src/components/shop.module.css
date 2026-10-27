@@ -1,3 +1,4 @@
+/* 商店、订单和退出操作的公共导航。 */
 .nav {
   display: flex;
   align-items: center;
@@ -16,6 +17,7 @@
   color: var(--color-muted);
   cursor: pointer;
 }
+/* 页面标题、辅助文案和表单错误提示。 */
 .heading {
   font-size: 1.5rem;
   margin-bottom: 1.5rem;
@@ -31,6 +33,7 @@
   color: #9f1239;
   border-radius: var(--radius-control);
 }
+/* 注册、登录及余额设置表单。 */
 .form {
   display: grid;
   gap: 1rem;
@@ -48,6 +51,7 @@
   background: white;
   color: var(--color-text);
 }
+/* 主要操作按钮、次要按钮及横向操作区。 */
 .button {
   display: inline-block;
   padding: 0.8rem 1.25rem;
@@ -74,6 +78,7 @@
 .row button {
   width: 100%;
 }
+/* 商品卡片、价格和模拟余额区域。 */
 .card {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
@@ -102,6 +107,7 @@
   margin-top: 1rem;
   max-width: 20rem;
 }
+/* 模拟账号登录与注册页签。 */
 .tabs {
   display: flex;
   gap: 1.5rem;
@@ -122,6 +128,7 @@
   color: var(--color-muted);
   font-size: 0.875rem;
 }
+/* 订单列表、状态文案和付款二维码。 */
 .orders {
   list-style: none;
   margin: 0;

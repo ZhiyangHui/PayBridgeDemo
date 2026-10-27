@@ -18,6 +18,7 @@ import { handleMockNotification } from "../../src/server/payments/handler";
 import { parseMoney } from "../../src/server/orders/money";
 import type { Order } from "../../src/generated/prisma/client";
 
+// 每轮测试使用独立数据库和密钥，避免修改开发环境的账号与余额。
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-shop-"));
 const database = `file:${path.join(directory, "test.db")}`;
 const db = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: database }) });
@@ -42,6 +43,7 @@ beforeAll(() => {
   });
 }, 30_000);
 
+// 每个用例开始前清空订单、通知和账号，防止前一个用例影响结果。
 beforeEach(async () => {
   await db.paymentNotification.deleteMany();
   await db.order.deleteMany();
@@ -54,7 +56,11 @@ afterAll(async () => {
   rmSync(directory, { recursive: true, force: true });
 });
 
-/** 注册真实数据库测试账号，返回其本站用户编号。 */
+/**
+ * 注册一个模拟测试账号，返回它关联的本站用户 ID。
+ * @param balance 初始余额，单位为元。
+ * @param provider 账号所属的模拟登录和支付渠道。
+ */
 async function account(
   username = "alice",
   balance = "1.00",
@@ -65,7 +71,10 @@ async function account(
   return (await db.mockAccount.findUniqueOrThrow({ where: { id: profile.providerUserId } })).userId;
 }
 
-/** 让生成的签名通知实际经过公开路由共用的处理器。 */
+/**
+ * 生成订单的模拟支付通知，并交给通知处理器验签和结算。
+ * @returns 通知处理器的 HTTP 响应，供测试检查付款结果。
+ */
 async function pay(order: Order) {
   return handleMockNotification(
     db,

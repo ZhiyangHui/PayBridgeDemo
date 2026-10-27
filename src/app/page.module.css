@@ -1,3 +1,4 @@
+/* 首页标题及登录说明。 */
 .title {
   font-size: 1.75rem;
   font-weight: 600;
@@ -9,6 +10,7 @@
   line-height: 1.75;
 }
 
+/* 支持换行的登录按钮区域。 */
 .actions {
   display: flex;
   flex-wrap: wrap;

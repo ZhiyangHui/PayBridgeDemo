@@ -1,7 +1,10 @@
 import { getEnv } from "../config/env";
 import type { LoginProvider } from "../auth/types";
 
-/** 微信与支付宝支付分别取服务端模式，不跟随登录方式切换。 */
+/**
+ * 读取指定支付渠道当前使用的运行模式。
+ * 微信返回 WECHAT_MODE，支付宝返回 PAYMENT_MODE；本函数不根据用户输入切换配置。
+ */
 export function paymentMode(provider: LoginProvider): "mock" | "sandbox" | "live" {
   const env = getEnv();
 

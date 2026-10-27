@@ -11,7 +11,11 @@ import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 使用登录渠道提交一次下单请求，商品金额由服务端确定。 */
+/**
+ * 显示测试商品金额和当前登录渠道的付款按钮。
+ * 未登录时返回首页，尚未开放的正式支付模式返回商店。
+ * 每次渲染生成提交键，用于服务端识别重复下单；错误码通过表单提示组件展示。
+ */
 export default async function Checkout({
   searchParams,
 }: {
@@ -29,6 +33,7 @@ export default async function Checkout({
     redirect("/dashboard");
   }
 
+  // 生成本次结算页的提交键，重复提交同一表单时复用同一订单。
   const checkoutKey = randomUUID();
 
   return (

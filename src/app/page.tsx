@@ -6,7 +6,11 @@ import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 展示登录入口和当前会话，明确标注模拟渠道。 */
+/**
+ * 显示微信、支付宝登录入口，并按当前配置标注模拟登录。
+ * 支付宝未处于正式支付环境且使用模拟登录时，额外显示官方沙箱授权入口。
+ * 用户已有有效会话时，显示昵称及进入商店的链接。
+ */
 export default async function Home() {
   const env = getEnv();
   const session = await currentSession();

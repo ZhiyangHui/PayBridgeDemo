@@ -3,8 +3,14 @@ import { readFileSync } from "node:fs";
 import { AppError } from "../errors/app-error";
 import { parseEnv } from "./env";
 
-/** 校验 RSA 密钥格式；支持支付宝控制台提供的不带 PEM 头的内容。 */
+/**
+ * 解析公钥或私钥，检查其类型为 RSA 且长度至少为 2048 位。
+ * @param value PEM 文本或支付宝控制台提供的裸密钥内容。
+ * @param privateKey true 检查私钥，false 检查公钥。
+ * @throws 密钥无法解析、不是 RSA 或位数不足时抛出异常。
+ */
 function validateKey(value: string, privateKey: boolean): void {
+  // 裸密钥补齐公钥或私钥 PEM 标记，已有 PEM 标记则直接使用。
   const pem = value.includes("-----BEGIN")
     ? value
     : `-----BEGIN ${privateKey ? "PRIVATE" : "PUBLIC"} KEY-----\n${value}\n-----END ${privateKey ? "PRIVATE" : "PUBLIC"} KEY-----`;
@@ -15,7 +21,11 @@ function validateKey(value: string, privateKey: boolean): void {
   }
 }
 
-/** 启动时验证真实密钥和文件可读性，模拟模式不会读取证书。 */
+/**
+ * 根据当前环境校验已启用平台的密钥格式及密钥文件。
+ * 支付宝非 mock 模式检查公私钥；微信 live 模式读取并检查指定密钥文件。
+ * @throws AppError 环境变量或任一密钥检查失败时抛出 CONFIG_ERROR。
+ */
 export function validateCredentials(source: Record<string, string | undefined>): void {
   const config = parseEnv(source);
   const checks: Array<[string, () => void]> = [];
@@ -40,6 +50,7 @@ export function validateCredentials(source: Record<string, string | undefined>):
     );
   }
 
+  // 逐项执行当前环境的检查，失败时只报告对应的配置名。
   for (const [field, check] of checks) {
     try {
       check();
@@ -49,7 +60,11 @@ export function validateCredentials(source: Record<string, string | undefined>):
   }
 }
 
-/** 独立授权入口只检查登录所需凭据，不要求配置支付通知地址。 */
+/**
+ * 检查支付宝登录需要的 AppID、环境网关、应用私钥和支付宝公钥。
+ * @param sandbox 指定本次登录是否使用沙箱网关。
+ * @throws AppError 标识、网关或密钥格式不符合要求时抛出 CONFIG_ERROR。
+ */
 export function validateAlipayLoginCredentials(
   source: Record<string, string | undefined>,
   sandbox: boolean,

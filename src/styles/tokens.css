@@ -1,3 +1,4 @@
+/* 集中定义全站使用的颜色、圆角、间距和字体。 */
 :root {
   color-scheme: light;
   --color-background: #f7f8fa;

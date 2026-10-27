@@ -1,4 +1,4 @@
-/** 统一业务错误的状态和安全提示，内部原因只保存在 cause 中。 */
+/** 业务错误码对应的 HTTP 状态码和用户提示。 */
 export const errorDefinitions = {
   OAUTH_STATE_INVALID: [400, "登录请求已失效，请重新登录"],
   OAUTH_CODE_INVALID: [400, "授权码无效，请重新登录"],
@@ -32,9 +32,14 @@ export const errorDefinitions = {
 /** 可由接口统一处理的错误码。 */
 export type ErrorCode = keyof typeof errorDefinitions;
 
-/** 保留内部诊断信息；对外提示始终取自固定错误定义。 */
+/** 携带业务错误码、内部说明和原始异常的错误对象。 */
 export class AppError extends Error {
-  /** 建立业务错误并保留原始原因，不直接将 message 返回给用户。 */
+  /**
+   * 创建指定错误码的业务异常。
+   * @param code 用于选择接口状态码和用户提示的业务错误码。
+   * @param message 内部错误说明，默认使用该错误码的提示文本。
+   * @param options 可通过 cause 保留触发本次错误的原始异常。
+   */
   constructor(
     readonly code: ErrorCode,
     message: string = errorDefinitions[code][1],

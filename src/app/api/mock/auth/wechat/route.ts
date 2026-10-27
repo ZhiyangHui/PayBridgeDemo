@@ -3,7 +3,9 @@ import { confirmMockLogin } from "@/server/auth/routes";
 
 export const runtime = "nodejs";
 
-/** 确认或取消 wechat 模拟授权。 */
+/**
+ * 接收微信模拟账号注册或登录表单，验证后跳转微信登录回调。
+ */
 export function POST(request: NextRequest) {
   return confirmMockLogin(request, "wechat");
 }

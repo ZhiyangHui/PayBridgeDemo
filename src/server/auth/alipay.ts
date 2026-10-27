@@ -22,7 +22,13 @@ const profileSchema = z.object({
   avatar: z.string().optional(),
 });
 
-/** 构造支付宝授权地址；沙箱地址与真实网关分别配置。 */
+/**
+ * 生成支付宝 OAuth 授权地址。
+ * @param state 本次登录的随机状态，用于回调时核对请求。
+ * @param callback 本站接收支付宝授权结果的完整 URL。
+ * @param sandbox 是否使用沙箱授权域名。
+ * @returns 包含应用 ID、auth_user 权限、回调地址和 state 的授权 URL。
+ */
 export function alipayAuthorizeUrl(state: string, callback: string, sandbox: boolean): string {
   const url = new URL(
     sandbox
@@ -39,7 +45,14 @@ export function alipayAuthorizeUrl(state: string, callback: string, sandbox: boo
   return url.toString();
 }
 
-/** 服务端换取令牌并读取资料；不保存令牌、不重试一次性授权码。 */
+/**
+ * 用支付宝授权码换取访问令牌，再查询用户资料。
+ * 换码使用 v2，会员资料查询使用 v3；核对两次响应中的用户标识后返回资料。
+ * @param code 本次授权得到的一次性授权码。
+ * @param mode 本次登录环境；沙箱资料接口返回指定服务错误时，可使用默认昵称和空头像。
+ * @returns 用户标识、昵称和可用的 HTTPS 头像地址，不保存或返回访问令牌。
+ * @throws AppError 缺失或不一致的身份为 OAUTH_CODE_INVALID；平台请求、验签或解析异常为 OAUTH_PROVIDER_ERROR。
+ */
 export async function exchangeAlipayCode(
   code: string,
   mode: "sandbox" | "live" = "live",
@@ -63,17 +76,19 @@ export async function exchangeAlipayCode(
       camelcase: false,
     });
 
-    // 保留已跑通的 v2 换码，只切换故障所在的资料查询；授权码不重试。
+    // 通过 v2 接口用一次性授权码换取访问令牌，请求失败时不重复使用该授权码。
     response = await sdk.exec(
       "alipay.system.oauth.token",
       { grantType: "authorization_code", code },
       { validateSign: true },
     );
+    // 检查换码响应中是否存在访问令牌，以及可用的用户身份字段。
     const token = tokenSchema.parse(response);
     accessToken = token.access_token;
     // 正常和降级登录都使用换码响应中的身份，避免资料恢复后生成另一个账号。
     const providerUserId = token.user_id ?? token.open_id;
 
+    // 没有用户标识就无法关联本站账号，立即终止登录。
     if (!providerUserId) {
       throw new AppError("OAUTH_CODE_INVALID");
     }
@@ -88,6 +103,7 @@ export async function exchangeAlipayCode(
     response = result.data;
     profileTraceId = safeTraceId(result.traceId);
 
+    // 资料接口未返回 HTTP 200 时终止登录，不把服务异常视为授权成功。
     if (result.responseHttpStatus !== 200) {
       throw new AppError("OAUTH_PROVIDER_ERROR");
     }
@@ -119,6 +135,7 @@ export async function exchangeAlipayCode(
       }
     }
 
+    // 解析资料字段，再核对资料身份与换码返回的身份是否一致。
     const user = profileSchema.parse(response);
     const profileUserId = token.user_id ? user.user_id : user.open_id;
 
@@ -129,6 +146,7 @@ export async function exchangeAlipayCode(
       throw new AppError("OAUTH_CODE_INVALID");
     }
 
+    // 仅保留 HTTPS 头像地址，缺失或其他协议的地址按无头像处理。
     const avatar = user.avatar && /^https:\/\//.test(user.avatar) ? user.avatar : null;
 
     console.info(
@@ -141,6 +159,7 @@ export async function exchangeAlipayCode(
 
     return { providerUserId, nickname: user.nick_name || "支付宝用户", avatar };
   } catch (cause) {
+    // 已明确分类的业务错误原样抛出，其他异常记录诊断后统一包装。
     if (cause instanceof AppError) {
       throw cause;
     }
@@ -150,7 +169,12 @@ export async function exchangeAlipayCode(
   }
 }
 
-/** 只记录阶段、错误类别和平台错误码，禁止输出响应正文或令牌。 */
+/**
+ * 从支付宝异常或响应中提取可公开记录的诊断字段，并写入错误日志。
+ * 记录请求阶段、接口版本、HTTP 状态、错误类别、业务码和追踪号。
+ * @param secrets 需要从诊断文本中移除的授权码和访问令牌。
+ * 启用本地诊断时额外记录脱敏说明，不输出完整响应或密钥。
+ */
 function logAlipayFailure(
   stage: "token" | "profile",
   cause: unknown,
@@ -166,6 +190,7 @@ function logAlipayFailure(
     responseHttpStatus?: unknown;
   } | null;
 
+  // 尝试从 SDK 保存的响应正文中读取业务错误；非 JSON 内容不写入日志。
   if (typeof error?.responseDataRaw === "string") {
     try {
       const raw = JSON.parse(error.responseDataRaw);
@@ -200,6 +225,7 @@ function logAlipayFailure(
     .safeParse(response ?? { code: error?.code });
   let category = "request";
 
+  // 区分验签错误、平台业务错误和响应字段错误，方便定位失败阶段。
   if (typeof error?.message === "string" && error.message.includes("验签")) {
     category = "signature";
   } else if (codes.success && codes.data.code && codes.data.code !== "10000") {
@@ -233,7 +259,10 @@ function logAlipayFailure(
   );
 }
 
-/** 平台追踪号只保留允许的字符，不把异常正文当作日志字段。 */
+/**
+ * 检查平台追踪号是否只含字母、数字、下划线或连字符，且不超过 128 位。
+ * @returns 合法的追踪号；类型或格式不符合要求时返回 undefined。
+ */
 function safeTraceId(value: unknown): string | undefined {
   return typeof value === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(value) ? value : undefined;
 }

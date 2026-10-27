@@ -7,7 +7,11 @@ import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 模拟平台的账号登录与注册入口。 */
+/**
+ * 显示指定渠道的模拟账号登录或注册表单。
+ * 根据 tab 参数切换表单，注册时增加初始余额输入；提交时携带授权 state。
+ * 渠道无效、未启用模拟登录或 state 格式错误时显示 404。
+ */
 export default async function MockLogin({
   params,
   searchParams,
@@ -26,6 +30,7 @@ export default async function MockLogin({
     notFound();
   }
 
+  // 只在 tab=register 时展示注册表单，其他值均展示登录表单。
   const register = query.tab === "register";
   const base = `/mock/login/${provider}?state=${query.state}`;
 

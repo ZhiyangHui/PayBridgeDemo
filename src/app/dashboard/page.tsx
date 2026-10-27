@@ -12,7 +12,11 @@ import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 商店只展示当前用户余额、商品和购买入口。 */
+/**
+ * 显示当前用户昵称、测试商品和购买入口。
+ * 模拟支付显示可调整的本站余额，支付宝沙箱显示使用沙箱余额的说明。
+ * 未登录时跳回首页，模拟账号不存在时提示重新注册。
+ */
 export default async function Dashboard({
   searchParams,
 }: {
@@ -26,6 +30,7 @@ export default async function Dashboard({
 
   const mode = paymentMode(session.provider);
   const mock = mode === "mock";
+  // 仅模拟付款读取本地钱包，沙箱付款不显示或使用该余额。
   const account = mock
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;

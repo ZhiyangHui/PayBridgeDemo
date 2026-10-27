@@ -4,27 +4,41 @@ import { AppError } from "../errors/app-error";
 import { parseMoney } from "../orders/money";
 import type { LoginProvider } from "../auth/types";
 
-/** 由服务端配置的验签公钥及平台身份，不接受通知自带的信任配置。 */
+/** 验证支付通知所需的公钥、解密密钥和收款身份。 */
 export type NotificationConfig = {
+  /** 用于验证平台通知签名的 RSA 公钥。 */
   publicKey: string;
+  /** 微信通知资源的 AES 解密密钥，长度为 32 字节。 */
   apiV3Key: Buffer;
+  /** 通知中必须匹配的收款应用 ID。 */
   appId: string;
+  /** 通知中必须匹配的收款商户 ID。 */
   merchantId: string;
+  /** 微信请求头中必须匹配的验签公钥或证书标识。 */
   serial: string;
 };
 
-/** 验签后供订单模块处理的支付事实。 */
+/** 通过校验后交给订单模块处理的支付结果。 */
 export type PaymentNotice = {
   provider: LoginProvider;
+  /** 本站创建并提交给支付平台的商户订单号。 */
   outTradeNo: string;
+  /** 支付平台返回的交易号。 */
   tradeNo: string;
+  /** 本次交易的总金额，单位为分。 */
   amountFen: number;
   currency: "CNY";
+  /** 通知或查单结果的唯一标识，用于记录已处理结果。 */
   dedupeKey: string;
+  /** 省略时按已支付处理；沙箱查单或通知也可返回已关闭。 */
   status?: "paid" | "closed";
 };
 
-/** 支付宝支付通知按非空参数排序，排除签名及签名类型。 */
+/**
+ * 生成支付宝通知的待验签字符串。
+ * 去掉 sign、sign_type 和空值，将剩余字段按名称排序并以 & 连接。
+ * @param fields 已解码的表单字段，不在此处重新进行 URL 编码。
+ */
 export function alipaySigningText(fields: Record<string, string>): string {
   return Object.keys(fields)
     .filter((key) => key !== "sign" && key !== "sign_type" && fields[key] !== "")
@@ -33,7 +47,11 @@ export function alipaySigningText(fields: Record<string, string>): string {
     .join("&");
 }
 
-/** 严格解析 Base64，拒绝被解码器忽略的尾随内容。 */
+/**
+ * 检查 Base64 签名格式，并用给定 RSA 公钥验证文本签名。
+ * @returns 格式合法且 SHA256 签名验证通过时返回 true，否则返回 false。
+ * @throws 公钥无法解析等底层加密异常会向上抛出。
+ */
 function validSignature(text: string, signature: string, publicKey: string): boolean {
   const bytes = Buffer.from(signature, "base64");
 
@@ -43,7 +61,11 @@ function validSignature(text: string, signature: string, publicKey: string): boo
   );
 }
 
-/** 校验支付宝 RSA2 通知后提取订单信息。 */
+/**
+ * 解析支付宝表单通知，验证 RSA2 签名、应用 ID 和收款商户。
+ * @returns 订单号、交易号、分金额、通知标识和支付状态。
+ * @throws 签名错误抛出 PAYMENT_INVALID；字段格式错误交给外层统一处理。
+ */
 function alipayNotice(
   raw: string,
   config: Pick<NotificationConfig, "publicKey" | "appId" | "merchantId">,
@@ -51,6 +73,7 @@ function alipayNotice(
   const params = new URLSearchParams(raw);
   const fields = Object.fromEntries(params);
 
+  // 拒绝重复字段、非 RSA2 签名以及被篡改的表单。
   if (
     params.size !== Object.keys(fields).length ||
     fields.sign_type !== "RSA2" ||
@@ -82,12 +105,19 @@ function alipayNotice(
   };
 }
 
-/** 先验微信原始通知签名，再用 API v3 密钥解密，最后校验商户与应用。 */
+/**
+ * 验证微信支付通知签名，解密交易数据并核对应用和商户。
+ * 校验通知时间、验签公钥标识、事件类型以及解密后的金额和状态。
+ * @returns 用于更新订单的支付结果；这里只接受交易成功通知。
+ * @throws 验签、解密或字段校验失败时向上抛出。
+ */
 function wechatNotice(raw: string, headers: Headers, config: NotificationConfig): PaymentNotice {
+  // 从请求头读取微信签名参数，验签时使用未经修改的原始正文。
   const timestamp = headers.get("Wechatpay-Timestamp") ?? "";
   const nonce = headers.get("Wechatpay-Nonce") ?? "";
   const signature = headers.get("Wechatpay-Signature") ?? "";
 
+  // 拒绝超过五分钟的通知、缺少随机值、未知公钥标识或无效签名。
   if (
     !/^\d{10}$/.test(timestamp) ||
     Math.abs(Date.now() / 1000 - Number(timestamp)) > 300 ||
@@ -98,6 +128,7 @@ function wechatNotice(raw: string, headers: Headers, config: NotificationConfig)
     throw new AppError("PAYMENT_INVALID");
   }
 
+  // 签名通过后检查通知类型及加密资源格式。
   const envelope = z
     .object({
       id: z.string().min(1).max(128),
@@ -111,11 +142,13 @@ function wechatNotice(raw: string, headers: Headers, config: NotificationConfig)
     })
     .parse(JSON.parse(raw));
   const resource = envelope.resource;
+  // 密文末尾 16 字节是 GCM 认证标签，其余部分是待解密内容。
   const ciphertext = Buffer.from(resource.ciphertext, "base64");
   const decipher = createDecipheriv("aes-256-gcm", config.apiV3Key, Buffer.from(resource.nonce));
   decipher.setAuthTag(ciphertext.subarray(-16));
   decipher.setAAD(Buffer.from(resource.associated_data));
   const plaintext = Buffer.concat([decipher.update(ciphertext.subarray(0, -16)), decipher.final()]);
+  // 解密后核对应用、商户、交易成功状态和以分为单位的金额。
   const data = z
     .object({
       appid: z.literal(config.appId),
@@ -137,7 +170,12 @@ function wechatNotice(raw: string, headers: Headers, config: NotificationConfig)
   };
 }
 
-/** 将格式、解密和验签异常统一为不可接受的通知，不泄露原始载荷。 */
+/**
+ * 按支付渠道解析并验证原始通知，返回统一的支付结果。
+ * @param raw 未修改的原始请求正文，最大 65536 字节。
+ * @param headers 微信验签所需的时间、随机值、公钥标识和签名请求头。
+ * @throws AppError 正文过大、格式错误、解密失败或验签失败均抛出 PAYMENT_INVALID。
+ */
 export function verifyNotification(
   provider: LoginProvider,
   raw: string,
@@ -155,7 +193,11 @@ export function verifyNotification(
   }
 }
 
-/** 支付宝沙箱和模拟通知共用 RSA2 验签，不需要微信配置。 */
+/**
+ * 使用支付宝公钥及商户配置验证一条原始表单通知。
+ * @returns 验证后的支付结果，不更新订单。
+ * @throws AppError 正文过大或任何验证失败时抛出 PAYMENT_INVALID。
+ */
 export function verifyAlipayNotification(
   raw: string,
   config: Pick<NotificationConfig, "publicKey" | "appId" | "merchantId">,

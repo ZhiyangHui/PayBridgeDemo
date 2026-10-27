@@ -3,7 +3,9 @@ import { createPayment } from "@/server/payments/routes";
 
 export const runtime = "nodejs";
 
-/** 处理 alipay 的 create 请求。 */
+/**
+ * 接收支付宝下单或继续付款表单，跳转模拟订单页或官方沙箱收银台。
+ */
 export function POST(request: NextRequest) {
   return createPayment(request, "alipay");
 }

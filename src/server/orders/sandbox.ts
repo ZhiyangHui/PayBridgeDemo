@@ -4,10 +4,15 @@ import { AppError } from "../errors/app-error";
 import { TEST_ITEM } from "./service";
 import type { PaymentNotice } from "../payments/notification";
 
-/** 下单时固定收款身份，后续通知和查单必须与之一致。 */
+/** 支付宝收款身份，包含应用 ID 和商户 ID。 */
 export type PaymentMerchant = { appId: string; merchantId: string };
 
-/** 本站会话拥有订单；支付宝付款账号由官方收银台验证，不依赖会员资料接口。 */
+/**
+ * 创建金额为 0.01 元的支付宝沙箱待付款订单。
+ * 同一 checkoutKey 重复提交时返回原订单，并核对用户、渠道、环境和商户是否一致。
+ * @param merchant 下单时使用的应用 ID 和商户 ID，会一同保存到订单。
+ * @throws AppError 提交键格式错误时抛出 INVALID_INPUT，复用的订单不匹配时抛出 CONFLICT。
+ */
 export async function createSandboxOrder(
   db: PrismaClient,
   userId: string,
@@ -18,6 +23,7 @@ export async function createSandboxOrder(
     throw new AppError("INVALID_INPUT");
   }
 
+  // 按提交键创建或复用订单，金额固定取服务端测试商品价格。
   const order = await db.order.upsert({
     where: { checkoutKey },
     update: {},
@@ -34,6 +40,7 @@ export async function createSandboxOrder(
     },
   });
 
+  // 复用订单时重新核对归属和收款配置，不允许拿别人的提交键下单。
   if (
     order.userId !== userId ||
     order.mode !== "sandbox" ||
@@ -47,7 +54,13 @@ export async function createSandboxOrder(
   return order;
 }
 
-/** 只接受已验签的支付事实；不改模拟钱包，重复通知和查单共用同一事务。 */
+/**
+ * 根据已验证的支付结果，将沙箱订单更新为已支付或已关闭。
+ * 核对订单身份、金额和币种，在同一事务中更新订单并记录通知，不修改模拟余额。
+ * 重复的相同交易结果直接返回，已支付订单收到同一交易的关闭通知也不回退。
+ * @param notice 已由通知验签或平台查单验证的支付结果。
+ * @throws AppError 数据不匹配时抛出 PAYMENT_INVALID，订单状态不允许更新时抛出 CONFLICT。
+ */
 export async function settleSandboxPayment(
   db: PrismaClient,
   notice: PaymentNotice,
@@ -56,6 +69,7 @@ export async function settleSandboxPayment(
   return db.$transaction(async (tx) => {
     const order = await tx.order.findUnique({ where: { outTradeNo: notice.outTradeNo } });
 
+    // 核对通知对应的订单、支付环境、收款身份和金额。
     if (
       !order ||
       order.mode !== "sandbox" ||
@@ -79,6 +93,7 @@ export async function settleSandboxPayment(
       return;
     }
 
+    // 仅更新仍待付款的订单；并发通知已处理时，当前更新不会覆盖它。
     const changed = await tx.order.updateMany({
       where: { id: order.id, status: "pending" },
       data: {
@@ -92,6 +107,7 @@ export async function settleSandboxPayment(
       throw new AppError("CONFLICT");
     }
 
+    // 保存本次支付结果；保存失败会连同上面的订单更新一起回滚。
     await tx.paymentNotification.create({
       data: {
         provider: "alipay",

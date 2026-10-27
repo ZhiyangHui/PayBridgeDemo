@@ -7,7 +7,10 @@ import { ownOrder } from "@/server/orders/service";
 import { AppError } from "@/server/errors/app-error";
 import { errorResponse } from "@/server/errors/response";
 
-/** 仅返回本人订单的付款状态，不接受浏览器传入的状态。 */
+/**
+ * 查询当前用户订单的最新状态，支付宝沙箱订单按频率限制主动查单。
+ * 返回禁止缓存的状态 JSON；未登录、无权读取或查单失败时返回统一错误响应。
+ */
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
   try {
     const session = await currentSession();
@@ -16,8 +19,10 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
       throw new AppError("UNAUTHENTICATED");
     }
 
+    // 先限定用户归属，只有本人订单才能读取或触发平台查单。
     let order = await ownOrder(getDb(), session.user.id, (await context.params).id);
 
+    // 仅在当前环境仍为支付宝沙箱时查询对应订单，避免切换配置后串环境。
     if (
       order.mode === "sandbox" &&
       order.provider === "alipay" &&

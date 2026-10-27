@@ -3,7 +3,9 @@ import { startLogin } from "@/server/auth/routes";
 
 export const runtime = "nodejs";
 
-/** 独立发起支付宝沙箱授权，不切换全站模拟模式。 */
+/**
+ * 单独发起支付宝官方沙箱登录，创建 sandbox 授权状态并跳转授权页。
+ */
 export function GET(request: NextRequest) {
   return startLogin(request, "alipay", true);
 }

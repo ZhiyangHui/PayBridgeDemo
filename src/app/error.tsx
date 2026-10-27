@@ -2,7 +2,10 @@
 import Link from "next/link";
 import { PageShell } from "@/components/PageShell";
 
-/** 页面读取失败时提供重试入口，避免展示内部异常。 */
+/**
+ * 显示页面加载失败提示，并提供重试和返回首页按钮。
+ * @param reset Next.js 提供的重试函数，点击后重新尝试渲染当前页面。
+ */
 export default function ErrorPage({ reset }: { reset: () => void }) {
   return (
     <PageShell>

@@ -20,6 +20,7 @@ import {
 } from "../../src/server/payments/alipay";
 import { alipaySigningText } from "../../src/server/payments/notification";
 
+// 测试使用独立临时数据库和临时密钥，不读取本地开发账号的数据。
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-alipay-"));
 const database = `file:${path.join(directory, "test.db")}`;
 const db = new PrismaClient({ adapter: new PrismaBetterSqlite3({ url: database }) });
@@ -47,6 +48,7 @@ beforeAll(async () => {
     env: { ...process.env, DATABASE_URL: database },
     stdio: "pipe",
   });
+  // 启动本地网关，检查 SDK 请求签名并返回可控制的查单结果。
   server = createServer(async (request, response) => {
     let body = "";
 
@@ -57,6 +59,7 @@ beforeAll(async () => {
     const params = new URL(request.url!, "http://localhost").searchParams;
     new URLSearchParams(body).forEach((value, key) => params.set(key, value));
     queryCalls++;
+    // 排除签名字段并按参数名排序，重建支付宝请求的待验签内容。
     const text = [...params.entries()]
       .filter(([key]) => key !== "sign")
       .sort(([a], [b]) => a.localeCompare(b))
@@ -69,6 +72,7 @@ beforeAll(async () => {
       Buffer.from(params.get("sign") ?? "", "base64"),
     );
     response.statusCode = valid ? httpStatus : 400;
+    // 默认用平台私钥签名；错误签名场景改用应用私钥，验证客户端会拒绝响应。
     response.end(
       JSON.stringify({
         alipay_trade_query_response: queryData,
@@ -96,6 +100,7 @@ beforeEach(async () => {
   httpStatus = 200;
   queryData = { code: "40004", sub_code: "ACQ.TRADE_NOT_EXIST" };
   vi.spyOn(console, "error").mockImplementation(() => {});
+  // 按外键依赖顺序清理记录，确保每个测试从空数据库开始。
   await db.paymentNotification.deleteMany();
   await db.order.deleteMany();
   await db.user.deleteMany();
@@ -105,12 +110,17 @@ beforeEach(async () => {
 });
 afterEach(() => vi.restoreAllMocks());
 afterAll(async () => {
+  // 关闭本地网关和数据库连接，再删除本轮测试的临时文件。
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await db.$disconnect();
   rmSync(directory, { recursive: true, force: true });
 });
 
-/** 使用独立的平台私钥签发通知；支持修改字段来覆盖拒绝场景。 */
+/**
+ * 生成带有效 RSA 签名的支付宝支付通知请求。
+ * @param order 通知对应的商户订单号。
+ * @param fields 覆盖默认通知字段，用于测试金额、商户或状态不匹配的情况。
+ */
 function notification(order: { outTradeNo: string }, fields: Record<string, string> = {}) {
   const data: Record<string, string> = {
     app_id: config.appId,
@@ -132,12 +142,18 @@ function notification(order: { outTradeNo: string }, fields: Record<string, stri
   return new Request(config.notifyUrl, { method: "POST", body: new URLSearchParams(data) });
 }
 
-/** 每次测试都通过真实订单创建入口构造待付款记录。 */
+/**
+ * 为当前测试用户创建一笔待付款的支付宝沙箱订单。
+ * 每次生成新的提交键，避免不同测试订单被当作重复提交。
+ */
 function order() {
   return createSandboxOrder(db, userId, randomUUID(), config);
 }
 
-/** 模拟已验签查单结果的原始平台响应。 */
+/**
+ * 构造指定订单已支付的支付宝查单响应数据。
+ * 签名由本地测试网关生成，本函数只返回业务字段。
+ */
 function paidQuery(outTradeNo: string) {
   return {
     code: "10000",

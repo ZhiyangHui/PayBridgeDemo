@@ -16,7 +16,12 @@ import styles from "@/components/shop.module.css";
 
 export const dynamic = "force-dynamic";
 
-/** 订单详情兼作模拟收银台，付款结果只读取数据库。 */
+/**
+ * 显示当前用户的订单金额、支付渠道和数据库中的付款状态。
+ * 模拟待付款订单显示确认付款与取消按钮；微信模拟订单额外显示本站收银台二维码。
+ * 支付宝沙箱待付款订单提供继续付款入口，并轮询服务端状态。
+ * 未登录时跳回首页，订单不存在或不属于当前用户时显示 404。
+ */
 export default async function OrderDetail({
   params,
   searchParams,
@@ -30,6 +35,7 @@ export default async function OrderDetail({
     redirect("/");
   }
 
+  // 查询条件同时包含订单 ID 和当前用户 ID，不向其他用户展示该订单。
   const order = await getDb().order.findFirst({
     where: { id: (await params).id, userId: session.user.id },
   });
@@ -44,7 +50,9 @@ export default async function OrderDetail({
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
   const pending = mock && order.status === "pending";
+  // 确认付款按钮只开放给与订单支付渠道一致的登录会话。
   const canPay = pending && order.provider === session.provider;
+  // 这里的模拟二维码指向本站订单页，不是微信平台生成的真实付款码。
   const qr =
     canPay && order.provider === "wechat"
       ? await QRCode.toDataURL(new URL(`/orders/${order.id}`, getEnv().APP_URL).toString(), {

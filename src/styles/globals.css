@@ -1,5 +1,6 @@
 @import "./tokens.css";
 
+/* 统一盒模型及浏览器默认间距。 */
 * {
   box-sizing: border-box;
 }
@@ -18,6 +19,7 @@ p {
   margin: 0;
 }
 
+/* 表单控件沿用页面字体。 */
 button,
 input,
 select,
@@ -33,6 +35,7 @@ a {
   color: inherit;
 }
 
+/* 为键盘操作显示可见焦点。 */
 :focus-visible {
   outline: 2px solid #2563eb;
   outline-offset: 3px;
