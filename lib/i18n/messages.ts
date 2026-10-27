@@ -35,6 +35,13 @@ export const english: Record<string, string> = {
   退出: "Sign out",
   用户头像: "User avatar",
   模拟余额: "Mock balance",
+  本站模拟余额: "Local mock balance",
+  调整模拟余额: "Edit mock balance",
+  "支付宝测试账号（本站登录）": "Alipay test account (local sign-in)",
+  "这是本站的模拟余额，不是支付宝沙箱账号余额。调整此金额不会改变沙箱余额，沙箱付款也不会扣除它。":
+    "This is the website's mock balance, not your Alipay sandbox balance. Editing it does not change sandbox funds, and sandbox payments do not deduct from it.",
+  "根据支付宝客服反馈，沙箱登录及会员信息接口目前不可用，因此这里使用本站账号登录，不展示支付宝沙箱余额。":
+    "Alipay support has advised that sandbox sign-in and member information APIs are currently unavailable. This demo uses a local account and does not display the Alipay sandbox balance.",
   调整余额: "Edit balance",
   "余额（元）": "Balance (CNY)",
   保存: "Save",

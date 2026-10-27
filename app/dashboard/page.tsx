@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * 显示当前用户昵称、测试商品和购买入口。
- * 显示用户头像和登录渠道；模拟支付显示本站余额，支付宝沙箱显示沙箱余额说明。
+ * 显示用户头像和登录来源，区分本站模拟余额与支付宝沙箱资金。
  * 未登录时跳回首页，模拟账号不存在时提示重新注册。
  */
 export default async function Dashboard({
@@ -38,6 +38,14 @@ export default async function Dashboard({
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
 
+  // 本站账号不能标成已完成支付宝授权，避免误认余额来源。
+  const localAlipay = session.provider === "alipay" && account !== null;
+  let loginLabel = session.provider === "wechat" ? t("微信登录") : t("支付宝登录");
+
+  if (localAlipay) {
+    loginLabel = t("支付宝测试账号（本站登录）");
+  }
+
   return (
     <PageShell mode={mode === "mock" ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
@@ -45,18 +53,28 @@ export default async function Dashboard({
         <UserAvatar src={session.user.avatar} provider={session.provider} />
         <div>
           <h1 className={styles.heading}>{session.user.nickname}</h1>
-          <p className={styles.muted}>
-            {session.provider === "wechat" ? t("微信登录") : t("支付宝登录")}
-          </p>
+          <p className={styles.muted}>{loginLabel}</p>
         </div>
       </div>
       <FormMessage code={(await searchParams).error} />
       {account && (
         <section className={styles.balance}>
-          <p className={styles.muted}>{t("模拟余额")}</p>
+          <p className={styles.muted}>{t("本站模拟余额")}</p>
           <p className={styles.price}>¥{formatMoney(account.balanceFen)}</p>
+          <p className={styles.muted}>
+            {t(
+              "这是本站的模拟余额，不是支付宝沙箱账号余额。调整此金额不会改变沙箱余额，沙箱付款也不会扣除它。",
+            )}
+          </p>
+          {localAlipay && mode === "sandbox" && (
+            <p className={styles.muted}>
+              {t(
+                "根据支付宝客服反馈，沙箱登录及会员信息接口目前不可用，因此这里使用本站账号登录，不展示支付宝沙箱余额。",
+              )}
+            </p>
+          )}
           <details>
-            <summary>{t("调整余额")}</summary>
+            <summary>{t("调整模拟余额")}</summary>
             <form action="/api/mock/wallet" method="post" className={styles.form}>
               <label>
                 {t("余额（元）")}
