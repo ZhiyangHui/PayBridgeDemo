@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "@/components/LanguageProvider";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -9,6 +10,7 @@ import { useRouter } from "next/navigation";
  * @param id 当前页面所展示的本站订单 ID。
  */
 export function OrderPoller({ id }: { id: string }) {
+  const { t } = useTranslations();
   const router = useRouter();
   const [failed, setFailed] = useState(false);
 
@@ -58,5 +60,5 @@ export function OrderPoller({ id }: { id: string }) {
     };
   }, [id, router]);
 
-  return failed ? <p role="status">状态更新失败，正在重试。</p> : null;
+  return failed ? <p role="status">{t("状态更新失败，正在重试。")}</p> : null;
 }

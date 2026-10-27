@@ -1,3 +1,6 @@
+"use client";
+
+import { useTranslations } from "@/components/LanguageProvider";
 import { errorDefinitions } from "@/lib/errors/app-error";
 import styles from "./shop.module.css";
 
@@ -6,6 +9,8 @@ import styles from "./shop.module.css";
  * 未提供错误码时不渲染，未知错误码显示通用失败文案。
  */
 export function FormMessage({ code }: { code?: string }) {
+  const { t } = useTranslations();
+
   if (!code) {
     return null;
   }
@@ -16,7 +21,7 @@ export function FormMessage({ code }: { code?: string }) {
 
   return (
     <p role="alert" className={styles.error}>
-      {message}
+      {t(message)}
     </p>
   );
 }

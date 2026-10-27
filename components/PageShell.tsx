@@ -1,3 +1,6 @@
+"use client";
+
+import { LanguageToggle, useTranslations } from "@/components/LanguageProvider";
 import Link from "next/link";
 import styles from "./PageShell.module.css";
 
@@ -15,11 +18,16 @@ type PageShellProps = {
  * @param mode 要显示的运行模式文字，未提供时隐藏标识。
  */
 export function PageShell({ children, mode }: PageShellProps) {
+  const { t } = useTranslations();
+
   return (
     <main className={styles.page}>
       <header className={styles.header}>
         <Link href="/">payBridge Demo</Link>
-        {mode && <span className={styles.badge}>{mode}</span>}
+        <div className={styles.controls}>
+          {mode && <span className={styles.badge}>{t(mode)}</span>}
+          <LanguageToggle />
+        </div>
       </header>
 
       <section className={styles.card}>{children}</section>

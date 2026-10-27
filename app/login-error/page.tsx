@@ -1,3 +1,4 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { PageShell } from "@/components/PageShell";
 import { errorDefinitions } from "@/lib/errors/app-error";
@@ -11,6 +12,7 @@ export default async function LoginError({
 }: {
   searchParams: Promise<{ code?: string; ref?: string }>;
 }) {
+  const { t } = await getTranslations();
   const params = await searchParams;
   const code =
     params.code && Object.hasOwn(errorDefinitions, params.code)
@@ -20,10 +22,10 @@ export default async function LoginError({
 
   return (
     <PageShell>
-      <h1>未能完成登录</h1>
-      <p>{errorDefinitions[code][1]}</p>
-      {reference && <p>参考编号：{reference}</p>}
-      <Link href="/">返回首页重新登录</Link>
+      <h1>{t("未能完成登录")}</h1>
+      <p>{t(errorDefinitions[code][1])}</p>
+      {reference && <p>{t("参考编号：{reference}", { reference })}</p>}
+      <Link href="/">{t("返回首页重新登录")}</Link>
     </PageShell>
   );
 }

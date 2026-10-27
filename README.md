@@ -7,6 +7,7 @@ A small Next.js project for WeChat and Alipay login and payments.
 ## 现在能用什么 / What works
 
 - 模拟账号注册、登录、设置余额、买商品、看订单。 / Mock registration, login, editable balances, purchases, and order history.
+- 右上角切换中英文，刷新和换页会保留选择。 / Switch Chinese and English in the header; the choice persists across pages and reloads.
 - 微信或支付宝登录后，都能在结算时选择两种付款方式。支付宝沙箱付款已跑通。 / Either login provider can choose either payment method at checkout. Alipay sandbox payment works.
 - 付款通知会验签，重复通知不会重复扣款。 / Payment notifications are verified and do not charge twice.
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useTranslations } from "@/components/LanguageProvider";
 import Image from "next/image";
 import { useState } from "react";
 
@@ -11,12 +12,13 @@ export function UserAvatar({
   src: string | null;
   provider: "wechat" | "alipay";
 }) {
+  const { t } = useTranslations();
   const [failed, setFailed] = useState(false);
 
   return (
     <Image
       src={!failed && src ? src : `/avatars/${provider}.svg`}
-      alt="用户头像"
+      alt={t("用户头像")}
       width={48}
       height={48}
       unoptimized

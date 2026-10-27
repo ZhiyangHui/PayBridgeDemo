@@ -1,3 +1,4 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/PageShell";
@@ -18,6 +19,7 @@ export default async function MockLogin({
   params: Promise<{ provider: string }>;
   searchParams: Promise<{ state?: string; tab?: string; error?: string }>;
 }) {
+  const { t } = await getTranslations();
   const { provider } = await params;
   const query = await searchParams;
 
@@ -34,13 +36,15 @@ export default async function MockLogin({
 
   return (
     <PageShell mode="MOCK MODE">
-      <h1 className={styles.heading}>{provider === "wechat" ? "微信" : "支付宝"}模拟账号</h1>
-      <nav className={styles.tabs} aria-label="账号操作">
+      <h1 className={styles.heading}>
+        {provider === "wechat" ? t("微信模拟账号") : t("支付宝模拟账号")}
+      </h1>
+      <nav className={styles.tabs} aria-label={t("账号操作")}>
         <Link href={base} aria-current={!register ? "page" : undefined}>
-          登录
+          {t("登录")}
         </Link>
         <Link href={`${base}&tab=register`} aria-current={register ? "page" : undefined}>
-          注册
+          {t("注册")}
         </Link>
       </nav>
       <FormMessage code={query.error} />
@@ -48,7 +52,7 @@ export default async function MockLogin({
         <input type="hidden" name="state" value={query.state} />
         <input type="hidden" name="intent" value={register ? "register" : "login"} />
         <label>
-          账号
+          {t("账号")}
           <input
             name="username"
             autoComplete="username"
@@ -56,11 +60,11 @@ export default async function MockLogin({
             minLength={3}
             maxLength={24}
             pattern="[a-zA-Z0-9_]+"
-            placeholder="字母、数字或下划线"
+            placeholder={t("字母、数字或下划线")}
           />
         </label>
         <label>
-          密码
+          {t("密码")}
           <input
             name="password"
             type="password"
@@ -68,12 +72,12 @@ export default async function MockLogin({
             required
             minLength={8}
             maxLength={128}
-            placeholder="至少 8 位"
+            placeholder={t("至少 8 位")}
           />
         </label>
         {register && (
           <label>
-            初始余额（元）
+            {t("初始余额（元）")}
             <input
               name="balance"
               type="number"
@@ -85,10 +89,10 @@ export default async function MockLogin({
             />
           </label>
         )}
-        <button className={styles.button}>{register ? "注册并登录" : "登录"}</button>
+        <button className={styles.button}>{register ? t("注册并登录") : t("登录")}</button>
       </form>
       <Link href="/" className={styles.back}>
-        返回
+        {t("返回")}
       </Link>
     </PageShell>
   );

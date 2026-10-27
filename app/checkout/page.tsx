@@ -1,3 +1,4 @@
+import { getTranslations } from "@/lib/i18n/server";
 import { randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { currentSession } from "@/lib/session";
@@ -21,6 +22,7 @@ export default async function Checkout({
 }: {
   searchParams: Promise<{ error?: string; product?: string }>;
 }) {
+  const { t } = await getTranslations();
   const session = await currentSession();
 
   if (!session) {
@@ -44,8 +46,8 @@ export default async function Checkout({
   return (
     <PageShell mode={mode === "mock" ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
-      <h1 className={styles.heading}>确认购买</h1>
-      <p>{product.name}</p>
+      <h1 className={styles.heading}>{t("确认购买")}</h1>
+      <p>{t(product.name)}</p>
       <p className={styles.price}>¥{formatMoney(product.amountFen)}</p>
       <FormMessage code={query.error} />
       <div className={styles.row}>
@@ -53,9 +55,9 @@ export default async function Checkout({
           const selectedMode = sessionPaymentMode(session, provider);
           const unavailable = provider === "alipay" && selectedMode === "live";
           const descriptions = {
-            mock: "模拟付款，仅扣本站余额",
-            sandbox: "沙箱付款，跳转支付宝官方收银台",
-            live: "真实付款，会扣真实账户余额",
+            mock: t("模拟付款，仅扣本站余额"),
+            sandbox: t("沙箱付款，跳转支付宝官方收银台"),
+            live: t("真实付款，会扣真实账户余额"),
           };
 
           return (
@@ -64,10 +66,10 @@ export default async function Checkout({
               <input type="hidden" name="productId" value={product.id} />
               <input type="hidden" name="checkoutKey" value={checkoutKey} />
               <button className={styles.button} disabled={unavailable}>
-                {provider === "wechat" ? "微信支付" : "支付宝支付"}
+                {provider === "wechat" ? t("微信支付") : t("支付宝支付")}
               </button>
               <p className={styles.muted}>
-                {unavailable ? "支付宝正式付款尚未接入" : descriptions[selectedMode]}
+                {unavailable ? t("支付宝正式付款尚未接入") : descriptions[selectedMode]}
               </p>
             </form>
           );

@@ -1,3 +1,4 @@
+import { getTranslations } from "@/lib/i18n/server";
 import Link from "next/link";
 import { UserAvatar } from "@/components/UserAvatar";
 import { redirect } from "next/navigation";
@@ -23,6 +24,7 @@ export default async function Dashboard({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
+  const { t } = await getTranslations();
   const session = await currentSession();
 
   if (!session) {
@@ -44,20 +46,20 @@ export default async function Dashboard({
         <div>
           <h1 className={styles.heading}>{session.user.nickname}</h1>
           <p className={styles.muted}>
-            {session.provider === "wechat" ? "微信登录" : "支付宝登录"}
+            {session.provider === "wechat" ? t("微信登录") : t("支付宝登录")}
           </p>
         </div>
       </div>
       <FormMessage code={(await searchParams).error} />
       {account && (
         <section className={styles.balance}>
-          <p className={styles.muted}>模拟余额</p>
+          <p className={styles.muted}>{t("模拟余额")}</p>
           <p className={styles.price}>¥{formatMoney(account.balanceFen)}</p>
           <details>
-            <summary>调整余额</summary>
+            <summary>{t("调整余额")}</summary>
             <form action="/api/mock/wallet" method="post" className={styles.form}>
               <label>
-                余额（元）
+                {t("余额（元）")}
                 <input
                   name="balance"
                   type="number"
@@ -68,26 +70,28 @@ export default async function Dashboard({
                   required
                 />
               </label>
-              <button className={styles.button}>保存</button>
+              <button className={styles.button}>{t("保存")}</button>
             </form>
           </details>
         </section>
       )}
-      {mock && !account && <p className={styles.muted}>请退出后注册模拟账号，开始购买。</p>}
+      {mock && !account && <p className={styles.muted}>{t("请退出后注册模拟账号，开始购买。")}</p>}
       {mode === "sandbox" && (
-        <p className={styles.muted}>微信与支付宝可在结算时选择，付款模式以按钮旁说明为准。</p>
+        <p className={styles.muted}>
+          {t("微信与支付宝可在结算时选择，付款模式以按钮旁说明为准。")}
+        </p>
       )}
       <div className={styles.products}>
         {TEST_PRODUCTS.map((product) => (
           <section className={styles.card} key={product.id}>
-            <h2>{product.name}</h2>
+            <h2>{t(product.name)}</h2>
             <p className={styles.price}>¥{formatMoney(product.amountFen)}</p>
             {account || mode === "sandbox" || mode === "live" ? (
               <Link className={styles.button} href={`/checkout?product=${product.id}`}>
-                购买
+                {t("购买")}
               </Link>
             ) : (
-              <p className={styles.muted}>暂不可购买</p>
+              <p className={styles.muted}>{t("暂不可购买")}</p>
             )}
           </section>
         ))}
