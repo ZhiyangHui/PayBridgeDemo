@@ -3,7 +3,7 @@ import { generateKeyPairSync, sign, verify } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import { exchangeAlipayCode } from "../../src/server/auth/alipay";
+import { exchangeAlipayCode } from "../../lib/auth/alipay";
 
 const appKeys = generateKeyPairSync("rsa", { modulusLength: 2048 });
 const platformKeys = generateKeyPairSync("rsa", { modulusLength: 2048 });

@@ -1,3 +1,5 @@
-# 数据库
+# 数据库 / Database
 
-定义数据表，并保存数据库结构变更。生成的客户端代码在 src/generated/。
+`schema.prisma` 定义表，`migrations/` 保存改表记录。启动时自动执行迁移，客户端生成到 `generated/prisma/`。
+
+`schema.prisma` defines tables; `migrations/` stores schema changes. Startup applies migrations, and the client is generated in `generated/prisma/`.

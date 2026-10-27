@@ -1,3 +1,5 @@
-# 项目文档
+# 说明 / Notes
 
-放项目说明。开发计划、技术选型和目录规划只保留在本地，不提交 Git。
+`setup.md` 放沙箱配置步骤。开发计划、需求分析和架构规划只留在本地，不提交 Git。
+
+`setup.md` covers sandbox setup. Development plans, requirements analysis, and architecture notes stay local and out of Git.

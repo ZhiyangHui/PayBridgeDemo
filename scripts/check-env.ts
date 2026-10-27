@@ -1,6 +1,6 @@
 import nextEnv from "@next/env";
-import { validateCredentials } from "../src/server/config/credentials";
-import { AppError } from "../src/server/errors/app-error";
+import { validateCredentials } from "../lib/config/credentials";
+import { AppError } from "../lib/errors/app-error";
 
 // 正式服务启动前检查配置，错误只显示字段说明，不输出 cause 或环境值。
 nextEnv.loadEnvConfig(process.cwd());

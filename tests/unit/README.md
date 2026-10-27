@@ -1,3 +1,5 @@
-# 单元测试
+# 单元测试 / Unit tests
 
-验证独立模块的规则和错误分支。目前覆盖环境与密钥配置、错误响应、请求超时、取消和有限重试。
+覆盖配置、授权参数、模拟授权码、错误提示，以及请求超时和重试。
+
+Covers configuration, authorization parameters, mock codes, errors, timeouts, and retries.

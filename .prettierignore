@@ -1,6 +1,6 @@
 node_modules/
 .next/
-src/generated/
+generated/
 next-env.d.ts
 .local/
 AGENTS.md

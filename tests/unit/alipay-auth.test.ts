@@ -12,7 +12,7 @@ vi.mock("alipay-sdk", () => ({
     }
   },
 }));
-import { exchangeAlipayCode } from "../../src/server/auth/alipay";
+import { exchangeAlipayCode } from "../../lib/auth/alipay";
 
 beforeEach(() => {
   execute.mockReset();
@@ -110,7 +110,7 @@ it("资料失败能够区分阶段，并隐藏资料和令牌", async () => {
 });
 
 it("诊断错误说明移除凭据、编码凭据、邮箱和 URL", async () => {
-  const { redactAlipayMessage } = await import("../../src/server/auth/alipay-diagnostics");
+  const { redactAlipayMessage } = await import("../../lib/auth/alipay-diagnostics");
   const result = redactAlipayMessage(
     "系统异常 secret+token secret%2Btoken auth_token=unknown somebody@example.com https://example.com/?code=secret 2088722037839494",
     ["secret+token"],

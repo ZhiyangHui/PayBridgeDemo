@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createHmac } from "node:crypto";
-import { createMockCode, exchangeMockCode } from "../../src/server/auth/mock";
+import { createMockCode, exchangeMockCode } from "../../lib/auth/mock";
 
 const secret = "test-secret".repeat(4);
 const profile = {

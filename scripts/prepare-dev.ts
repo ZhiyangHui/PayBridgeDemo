@@ -1,11 +1,11 @@
 import nextEnv from "@next/env";
 import path from "node:path";
-import { databaseUrl } from "../src/server/db/url";
+import { databaseUrl } from "../lib/db/url";
 import { closeSync, openSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { validateCredentials } from "../src/server/config/credentials";
-import { parseEnv } from "../src/server/config/env";
+import { validateCredentials } from "../lib/config/credentials";
+import { parseEnv } from "../lib/config/env";
 
 const { loadEnvConfig } = nextEnv;
 

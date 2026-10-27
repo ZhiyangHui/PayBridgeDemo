@@ -15,8 +15,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "prestart": "tsx scripts/check-env.ts",
-    "format": "prettier --write \"{src,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\"",
-    "format:check": "prettier --check \"{src,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\""
+    "format": "prettier --write \"{app,lib,components,styles,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\"",
+    "format:check": "prettier --check \"{app,lib,components,styles,scripts,tests}/**/*.{ts,tsx,css}\" \"*.{ts,mjs,json}\""
   },
   "type": "module",
   "dependencies": {

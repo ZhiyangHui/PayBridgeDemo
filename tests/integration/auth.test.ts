@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { PrismaClient } from "../../src/generated/prisma/client";
+import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import {
   createLoginState,
@@ -12,9 +12,9 @@ import {
   readSession,
   revokeSession,
   tokenHash,
-} from "../../src/server/auth/store";
+} from "../../lib/auth/store";
 
-import { createMockCode, exchangeMockCode } from "../../src/server/auth/mock";
+import { createMockCode, exchangeMockCode } from "../../lib/auth/mock";
 
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-auth-"));
 const database = `file:${path.join(directory, "test.db")}`;
@@ -59,11 +59,17 @@ describe("真实 SQLite 登录状态和会话", () => {
     await expect(consumeLoginState(db, "alipay", state, browser)).rejects.toMatchObject({
       code: "OAUTH_STATE_INVALID",
     });
-    await expect(consumeLoginState(db, "wechat", state, browser)).resolves.toBe("mock");
+    await expect(consumeLoginState(db, "wechat", state, browser)).resolves.toMatchObject({
+      mode: "mock",
+      paymentMode: "mock",
+    });
   });
   it("授权模式保存在服务端，回调读取原模式且仍只能消费一次", async () => {
     const { state, browser } = await createLoginState(db, "alipay", "sandbox");
-    await expect(consumeLoginState(db, "alipay", state, browser)).resolves.toBe("sandbox");
+    await expect(consumeLoginState(db, "alipay", state, browser)).resolves.toMatchObject({
+      mode: "sandbox",
+      paymentMode: "sandbox",
+    });
     await expect(consumeLoginState(db, "alipay", state, browser)).rejects.toMatchObject({
       code: "OAUTH_STATE_INVALID",
     });

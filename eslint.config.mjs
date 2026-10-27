@@ -20,5 +20,5 @@ export default defineConfig([
       ],
     },
   },
-  globalIgnores([".next/**", "src/generated/**", "next-env.d.ts"]),
+  globalIgnores([".next/**", "generated/**", "next-env.d.ts"]),
 ]);

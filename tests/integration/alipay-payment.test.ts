@@ -7,18 +7,18 @@ import { createServer, type Server } from "node:http";
 import { generateKeyPairSync, randomUUID, sign, verify } from "node:crypto";
 
 vi.mock("server-only", () => ({}));
-import { PrismaClient } from "../../src/generated/prisma/client";
+import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { createSandboxOrder, settleSandboxPayment } from "../../src/server/orders/sandbox";
-import { registerMockAccount } from "../../src/server/auth/mock-accounts";
-import { createMockOrder, ownOrder } from "../../src/server/orders/service";
+import { createSandboxOrder, settleSandboxPayment } from "../../lib/orders/sandbox";
+import { registerMockAccount } from "../../lib/auth/mock-accounts";
+import { createMockOrder, ownOrder } from "../../lib/orders/service";
 import {
   alipayCheckoutUrl,
   handleAlipayNotification,
   refreshAlipayOrder,
   type AlipayPaymentConfig,
-} from "../../src/server/payments/alipay";
-import { alipaySigningText } from "../../src/server/payments/notification";
+} from "../../lib/payments/alipay";
+import { alipaySigningText } from "../../lib/payments/notification";
 
 // 测试使用独立临时数据库和临时密钥，不读取本地开发账号的数据。
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-alipay-"));

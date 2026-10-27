@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { AppError } from "../../src/server/errors/app-error";
-import { errorResponse } from "../../src/server/errors/response";
+import { AppError } from "../../lib/errors/app-error";
+import { errorResponse } from "../../lib/errors/response";
 
 afterEach(() => vi.restoreAllMocks());
 

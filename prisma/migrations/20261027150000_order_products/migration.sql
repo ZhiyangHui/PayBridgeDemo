@@ -1,0 +1,2 @@
+ALTER TABLE "Order" ADD COLUMN "productId" TEXT NOT NULL DEFAULT 'test-item';
+ALTER TABLE "Order" ADD COLUMN "productName" TEXT NOT NULL DEFAULT '测试商品';

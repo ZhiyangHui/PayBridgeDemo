@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { requestJson } from "../../src/server/http/request";
+import { requestJson } from "../../lib/http/request";
 
 const schema = z.object({ ok: z.boolean() });
 

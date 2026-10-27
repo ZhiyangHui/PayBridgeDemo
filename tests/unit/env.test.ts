@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
-import { parseEnv } from "../../src/server/config/env";
-import { validateCredentials } from "../../src/server/config/credentials";
+import { parseEnv } from "../../lib/config/env";
+import { validateCredentials } from "../../lib/config/credentials";
 
 const base = {
   APP_URL: "http://localhost:3000",

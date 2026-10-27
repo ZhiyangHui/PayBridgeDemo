@@ -2,7 +2,7 @@ import nextEnv from "@next/env";
 
 const { loadEnvConfig } = nextEnv;
 import { defineConfig } from "prisma/config";
-import { databaseUrl } from "./src/server/db/url";
+import { databaseUrl } from "./lib/db/url";
 
 loadEnvConfig(process.cwd());
 export default defineConfig({

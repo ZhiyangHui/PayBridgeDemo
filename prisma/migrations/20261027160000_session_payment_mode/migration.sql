@@ -1,0 +1,2 @@
+ALTER TABLE "Session" ADD COLUMN "paymentMode" TEXT NOT NULL DEFAULT 'mock';
+ALTER TABLE "OAuthState" ADD COLUMN "paymentMode" TEXT NOT NULL DEFAULT 'mock';

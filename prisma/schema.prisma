@@ -1,7 +1,7 @@
 // 生成服务端 Prisma 客户端，输出目录由 Git 忽略。
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "../generated/prisma"
 }
 
 // 使用 SQLite，数据库文件地址在 prisma.config.ts 中读取。
@@ -52,6 +52,8 @@ model AuthIdentity {
 
 /// 保存登录会话所属用户、登录渠道、令牌哈希和过期时间；不保存原始令牌。
 model Session {
+  /// 本次登录入口选择的支付模式；旧会话默认模拟，不能被全局配置升级。
+  paymentMode String @default("mock")
   /// 记录本次登录渠道，旧会话默认按微信处理。
   provider  Provider @default(wechat)
   id        String   @id @default(cuid())
@@ -67,6 +69,8 @@ model Session {
 
 /// 保存一次登录的授权状态、浏览器绑定信息及有效期，回调成功消费后记录使用时间。
 model OAuthState {
+  /// 本次登录对应的支付模式，与授权方式分开保存，回调不能覆盖。
+  paymentMode String @default("mock")
   /// 授权模式由服务端记录，回调不能通过参数切换模式。
   mode        String    @default("mock")
   id          String    @id @default(cuid())
@@ -92,7 +96,11 @@ model Order {
   userId          String
   user            User                  @relation(fields: [userId], references: [id])
   provider        Provider
-  /// 金额单位为分，禁止浮点金额。
+  /// 商品目录中的编号，旧订单对应默认测试商品。
+  productId       String                @default("test-item")
+  /// 下单时的商品名称；目录改名后，历史订单仍保留原名称。
+  productName     String                @default("测试商品")
+  /// 下单时的商品金额，单位为分。
   amountFen       Int
   /// 订单币种，当前流程仅使用 CNY。
   currency        String                @default("CNY")

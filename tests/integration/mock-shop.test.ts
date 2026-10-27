@@ -4,19 +4,23 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
-import { PrismaClient } from "../../src/generated/prisma/client";
+import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { registerMockAccount, loginMockAccount } from "../../src/server/auth/mock-accounts";
+import { registerMockAccount, loginMockAccount } from "../../lib/auth/mock-accounts";
 import {
   createMockOrder,
   ownOrder,
   setMockBalance,
   cancelMockOrder,
-} from "../../src/server/orders/service";
-import { mockPaymentNotification } from "../../src/server/payments/mock-provider";
-import { handleMockNotification } from "../../src/server/payments/handler";
-import { parseMoney } from "../../src/server/orders/money";
-import type { Order } from "../../src/generated/prisma/client";
+} from "../../lib/orders/service";
+import { mockPaymentNotification } from "../../lib/payments/mock-provider";
+import { handleMockNotification } from "../../lib/payments/handler";
+import { TEST_PRODUCTS } from "../../lib/orders/catalog";
+import { readOrderHistory } from "../../lib/orders/history";
+import { createSandboxOrder } from "../../lib/orders/sandbox";
+import { createRemoteOrder } from "../../lib/orders/remote";
+import { parseMoney } from "../../lib/orders/money";
+import type { Order } from "../../generated/prisma/client";
 
 // 每轮测试使用独立数据库和密钥，避免修改开发环境的账号与余额。
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-shop-"));
@@ -247,5 +251,101 @@ describe("注册、余额与模拟支付", () => {
     expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
       0,
     );
+  });
+});
+
+describe("多商品与历史订单", () => {
+  it.each(["wechat", "alipay"] as const)(
+    "%s 按目录价格扣款，重复付款不重复扣除",
+    async (provider) => {
+      const user = await account("catalog_buyer", "100.00", provider);
+
+      for (const product of TEST_PRODUCTS) {
+        const saved = await createMockOrder(db, user, provider, randomUUID(), product.id);
+        expect(saved).toMatchObject({
+          productId: product.id,
+          productName: product.name,
+          amountFen: product.amountFen,
+        });
+        await pay(saved);
+        await pay(saved);
+      }
+
+      expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
+        9389,
+      );
+      expect(await db.paymentNotification.count()).toBe(4);
+    },
+  );
+
+  it("拒绝未知商品和同一提交键换商品，保留原订单", async () => {
+    const user = await account();
+    await expect(
+      createMockOrder(db, user, "wechat", randomUUID(), "unknown"),
+    ).rejects.toMatchObject({ code: "INVALID_INPUT" });
+    const key = randomUUID();
+    const saved = await createMockOrder(db, user, "wechat", key, "test-notebook");
+    await expect(createMockOrder(db, user, "wechat", key, "test-mug")).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    expect(await db.order.count()).toBe(1);
+    expect((await ownOrder(db, user, saved.id)).amountFen).toBe(100);
+  });
+
+  it("微信真实和支付宝沙箱订单均保存选定商品，复用提交键不能换商品", async () => {
+    const user = await account();
+    const merchant = { appId: "test-app", merchantId: "test-merchant" };
+    const key = randomUUID();
+    const sandbox = await createSandboxOrder(db, user, key, merchant, "test-mug");
+    expect(sandbox).toMatchObject({ productName: "测试马克杯", amountFen: 500 });
+    await expect(createSandboxOrder(db, user, key, merchant, "test-item")).rejects.toMatchObject({
+      code: "CONFLICT",
+    });
+    const live = await createRemoteOrder(
+      db,
+      user,
+      randomUUID(),
+      { ...merchant, provider: "wechat", mode: "live" },
+      "test-sticker",
+    );
+    expect(live).toMatchObject({ productName: "测试贴纸", amountFen: 10 });
+  });
+
+  it("历史订单分页无重复、按状态筛选，且不泄露其他用户订单", async () => {
+    const user = await account();
+    const other = await account("other");
+
+    for (let index = 0; index < 25; index++) {
+      await db.order.create({
+        data: {
+          userId: user,
+          provider: "wechat",
+          mode: "mock",
+          outTradeNo: randomUUID(),
+          amountFen: 100,
+          productId: "test-notebook",
+          productName: "下单时的名称",
+          status: index < 3 ? "paid" : "pending",
+          createdAt: new Date(1700000000000 + index * 1000),
+        },
+      });
+    }
+
+    await createMockOrder(db, other, "wechat", randomUUID());
+    const first = await readOrderHistory(db, user);
+    const second = await readOrderHistory(db, user, "all", "2");
+    expect(first).toMatchObject({ total: 25, page: 1, pages: 2 });
+    expect(first.orders).toHaveLength(20);
+    expect(second.orders).toHaveLength(5);
+    expect(new Set([...first.orders, ...second.orders].map((order) => order.id)).size).toBe(25);
+    expect(
+      first.orders.every((order) => order.userId === user && order.productName === "下单时的名称"),
+    ).toBe(true);
+    const paid = await readOrderHistory(db, user, "paid");
+    expect(paid.total).toBe(3);
+    expect(paid.orders.every((order) => order.status === "paid")).toBe(true);
+    expect((await readOrderHistory(db, user, "unknown", "-1")).page).toBe(1);
+    expect((await readOrderHistory(db, user, "all", "999999")).page).toBe(2);
+    expect((await readOrderHistory(db, user, "closed")).total).toBe(0);
   });
 });

@@ -1,11 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-import {
-  exchangeWechatCode,
-  wechatAuthorizeUrl,
-  wechatLoginConfig,
-} from "../../src/server/auth/wechat";
+import { exchangeWechatCode, wechatAuthorizeUrl, wechatLoginConfig } from "../../lib/auth/wechat";
 
 const config = { appId: "wx1234567890abcdef", appSecret: "a".repeat(32) };
 const token = {

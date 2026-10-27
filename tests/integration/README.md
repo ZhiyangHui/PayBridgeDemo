@@ -1,5 +1,5 @@
-# 集成测试
+# 流程测试 / Integration tests
 
-在临时 SQLite 数据库运行迁移，验证 state 原子消费、身份隔离、会话更新、过期和撤销。测试结束自动清理，不使用开发数据库。
+检查登录会话、订单、余额、通知验签、重复付款和漏通知查单。
 
-`alipay-sdk.test.ts` 使用真实 SDK 和本地签名响应，检查换码、令牌传递、请求签名及错误诊断，不访问支付宝。
+Checks sessions, orders, balances, notification verification, duplicate payments, and recovery through status queries.

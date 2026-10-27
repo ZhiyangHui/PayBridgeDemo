@@ -1,3 +1,5 @@
-# 数据库迁移
+# 数据库变更 / Database migrations
 
-按时间保存数据库变更，供新环境建表和已有环境升级。已应用的迁移通过新增迁移修正。
+每个时间戳目录是一批 SQL 变更，启动时按顺序应用。
+
+Each timestamped folder contains one set of SQL changes, applied in order at startup.

@@ -8,27 +8,24 @@ import { NextRequest } from "next/server";
 
 vi.mock("server-only", () => ({}));
 const boundaries = vi.hoisted(() => ({ db: null as unknown, session: null as unknown }));
-vi.mock("../../src/server/db/client", () => ({ getDb: () => boundaries.db }));
-vi.mock("../../src/server/auth/session", async (original) => ({
+vi.mock("../../lib/db", () => ({ getDb: () => boundaries.db }));
+vi.mock("../../lib/session", async (original) => ({
   ...(await original<object>()),
   currentSession: async () => boundaries.session,
 }));
-import { PrismaClient, type Order } from "../../src/generated/prisma/client";
+import { PrismaClient, type Order } from "../../generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { createRemoteOrder } from "../../src/server/orders/remote";
+import { createRemoteOrder } from "../../lib/orders/remote";
 import {
   createWechatPayment,
   handleWechatNotification,
   refreshWechatOrder,
-} from "../../src/server/payments/wechat";
-import {
-  wechatPayRequest,
-  type WechatPaymentConfig,
-} from "../../src/server/payments/wechat-client";
+} from "../../lib/payments/wechat";
+import { wechatPayRequest, type WechatPaymentConfig } from "../../lib/payments/wechat-client";
 import { z } from "zod";
-import { createPayment, receiveNotification } from "../../src/server/payments/routes";
-import { startLogin, finishLogin } from "../../src/server/auth/routes";
-import { createLoginState, readSession } from "../../src/server/auth/store";
+import { createPayment, receiveNotification } from "../../lib/payments/routes";
+import { startLogin, finishLogin } from "../../lib/auth/routes";
+import { createLoginState, readSession } from "../../lib/auth/store";
 
 const directory = mkdtempSync(path.join(tmpdir(), "paybridge-wechat-live-"));
 const database = `file:${path.join(directory, "test.db")}`;
@@ -160,7 +157,7 @@ beforeEach(async () => {
   await db.user.deleteMany();
   await db.oAuthState.deleteMany();
   userId = (await db.user.create({ data: { nickname: "测试用户" } })).id;
-  boundaries.session = { provider: "wechat", user: { id: userId } };
+  boundaries.session = { provider: "wechat", paymentMode: "live", user: { id: userId } };
   queryData = { code: "ORDER_NOT_EXIST" };
   queryStatus = 404;
   corruptSignature = false;
@@ -234,7 +231,7 @@ function checkout(data: Record<string, string>) {
   return new NextRequest("https://shop.test/api/pay/wechat/create", {
     method: "POST",
     headers: { origin: "https://shop.test" },
-    body: new URLSearchParams({ ...data, amount: "9999" }),
+    body: new URLSearchParams({ ...data, amount: "9999", paymentMode: "live" }),
   });
 }
 
@@ -410,7 +407,7 @@ describe("微信 Native 正式协议（临时密钥，本地响应）", () => {
     await expect(
       createWechatPayment(db, saved, { ...config, merchantId: "other" }),
     ).rejects.toMatchObject({ code: "PAYMENT_INVALID" });
-    boundaries.session = { provider: "wechat", user: { id: "other" } };
+    boundaries.session = { provider: "wechat", paymentMode: "live", user: { id: "other" } };
     expect(
       (await createPayment(checkout({ orderId: saved.id }), "wechat")).headers.get("location"),
     ).toContain("NOT_FOUND");

@@ -1,5 +1,5 @@
-# 测试
+# 自动化测试 / Automated tests
 
-unit 放单元测试，integration 放跨模块和数据库集成测试。测试使用独立数据，不操作真实支付。
+`unit/` 检查单个模块，`integration/` 检查跨模块流程。
 
-微信 OAuth 和 Native 测试使用临时密钥、独立 SQLite 和本地响应，覆盖授权回调、会话、签名、通知解密、重复通知和漏通知查单，不会发起真实付款。
+`unit/` checks individual modules; `integration/` checks flows across modules.

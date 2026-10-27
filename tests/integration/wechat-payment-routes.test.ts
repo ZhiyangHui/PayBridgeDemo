@@ -3,25 +3,28 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomUUID, generateKeyPairSync } from "node:crypto";
 import { NextRequest } from "next/server";
-import { PrismaClient } from "../../src/generated/prisma/client";
+import { PrismaClient } from "../../generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { registerMockAccount } from "../../src/server/auth/mock-accounts";
-import { completeLogin } from "../../src/server/auth/store";
+import { registerMockAccount } from "../../lib/auth/mock-accounts";
+import { startLogin, confirmMockLogin, finishLogin } from "../../lib/auth/routes";
+import { createMockOrder } from "../../lib/orders/service";
+import { createSandboxOrder } from "../../lib/orders/sandbox";
+import { completeLogin, readSession } from "../../lib/auth/store";
 import {
   createPayment,
   receiveNotification,
   simulatePayment,
   updateBalance,
-} from "../../src/server/payments/routes";
-import { getMockPaymentKeys } from "../../src/server/payments/mock-keys";
-import { mockPaymentNotification } from "../../src/server/payments/mock-provider";
+} from "../../lib/payments/routes";
+import { getMockPaymentKeys } from "../../lib/payments/mock-keys";
+import { mockPaymentNotification } from "../../lib/payments/mock-provider";
 
 // 仅替换 Cookie 入口和数据库连接，订单、会话、模式判断与通知处理使用真实代码。
 const browser = vi.hoisted(() => ({ token: "", keyFile: "" }));
 vi.mock("server-only", () => ({}));
-vi.mock("../../src/server/db/client", () => ({ getDb: () => db }));
+vi.mock("../../lib/db", () => ({ getDb: () => db }));
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => ({ value: browser.token }) }),
 }));
@@ -110,7 +113,7 @@ function form(url: string, fields: Record<string, string>, source = origin) {
   return new NextRequest(new URL(url, origin), {
     method: "POST",
     headers: { origin: source },
-    body: new URLSearchParams(fields),
+    body: new URLSearchParams({ paymentMode: "mock", ...fields }),
   });
 }
 
@@ -135,7 +138,198 @@ async function act(id: string, action = "pay") {
   return new URL(response.headers.get("location")!).searchParams.get("error");
 }
 
+/** 从实际登录入口走到回调，验证入口选择不会被表单里的模式覆盖。 */
+async function enterAlipay(sandbox: boolean, intent = "register") {
+  const path = sandbox ? "/api/auth/alipay/sandbox/start" : "/api/auth/alipay/start";
+  const response = await startLogin(
+    new NextRequest(origin + path, { headers: { host: "localhost:3000" } }),
+    "alipay",
+    sandbox,
+  );
+  const target = new URL(response.headers.get("location")!);
+  expect(target.origin).toBe(origin);
+  expect(target.pathname).toBe("/mock/login/alipay");
+  const browserCookie = response.cookies.get("oauth_alipay")!.value;
+  const auth = new NextRequest(origin + "/api/mock/auth/alipay", {
+    method: "POST",
+    headers: { origin, cookie: `oauth_alipay=${browserCookie}` },
+    body: new URLSearchParams({
+      state: target.searchParams.get("state")!,
+      intent,
+      username: "entry_buyer",
+      password: "password123",
+      balance: "1.00",
+      paymentMode: sandbox ? "mock" : "sandbox",
+    }),
+  });
+  const confirmed = await confirmMockLogin(auth, "alipay");
+  const callback = new URL(confirmed.headers.get("location")!);
+  callback.searchParams.set("paymentMode", sandbox ? "mock" : "sandbox");
+  const finished = await finishLogin(
+    new NextRequest(callback, {
+      headers: { cookie: `oauth_alipay=${browserCookie}; paybridge_session=${browser.token}` },
+    }),
+    "alipay",
+  );
+  expect(new URL(finished.headers.get("location")!).pathname).toBe("/dashboard");
+  browser.token = finished.cookies.get("paybridge_session")!.value;
+
+  return (await readSession(db, browser.token))!;
+}
+
+describe("支付宝模拟与沙箱隔离", () => {
+  it("两个入口都用本站账号，但会话分别保存 mock 和 sandbox，不接受回调覆盖", async () => {
+    const mock = await enterAlipay(false);
+    expect(mock.paymentMode).toBe("mock");
+    const sandbox = await enterAlipay(true, "login");
+    expect(sandbox.paymentMode).toBe("sandbox");
+    expect(sandbox.user.id).toBe(mock.user.id);
+  });
+
+  it("实际模拟入口下单不使用支付宝 SDK，也不访问外网", async () => {
+    await enterAlipay(false);
+    const fetcher = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("禁止外网请求"));
+    const response = await createPayment(
+      form("/api/pay/alipay/create", { checkoutKey: randomUUID() }),
+      "alipay",
+    );
+    expect(new URL(response.headers.get("location")!).pathname).toMatch(/^\/orders\//);
+    expect((await db.order.findFirstOrThrow()).mode).toBe("mock");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it("只有沙箱入口生成支付宝沙箱收银台地址，且不扣模拟余额", async () => {
+    const keys = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { format: "pem", type: "pkcs8" },
+      publicKeyEncoding: { format: "pem", type: "spki" },
+    });
+    vi.stubEnv("ALIPAY_PRIVATE_KEY", keys.privateKey);
+    vi.stubEnv("ALIPAY_PUBLIC_KEY", keys.publicKey);
+    const session = await enterAlipay(true);
+    const response = await createPayment(
+      form("/api/pay/alipay/create", { checkoutKey: randomUUID(), paymentMode: "sandbox" }),
+      "alipay",
+    );
+    expect(new URL(response.headers.get("location")!).hostname).toBe(
+      "openapi-sandbox.dl.alipaydev.com",
+    );
+    expect((await db.order.findFirstOrThrow()).mode).toBe("sandbox");
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+    ).toBe(100);
+  });
+
+  it("模拟会话不能伪造模式或继续支付本人沙箱订单", async () => {
+    const session = await enterAlipay(false);
+    const saved = await createSandboxOrder(db, session.user.id, randomUUID(), {
+      appId: "test",
+      merchantId: "test",
+    });
+
+    const submissions: Record<string, string>[] = [
+      { checkoutKey: randomUUID(), paymentMode: "sandbox" },
+      { orderId: saved.id },
+    ];
+
+    for (const fields of submissions) {
+      const response = await createPayment(form("/api/pay/alipay/create", fields), "alipay");
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe(
+        "PAYMENT_MODE_MISMATCH",
+      );
+    }
+
+    expect(await db.order.count()).toBe(1);
+  });
+
+  it("切换到沙箱入口后，旧模拟付款表单和旧模拟订单不能发起沙箱付款", async () => {
+    const session = await enterAlipay(false);
+    const saved = await createMockOrder(db, session.user.id, "alipay", randomUUID());
+    await enterAlipay(true, "login");
+
+    const submissions: Record<string, string>[] = [
+      { checkoutKey: randomUUID(), paymentMode: "mock" },
+      { orderId: saved.id, paymentMode: "sandbox" },
+    ];
+
+    for (const fields of submissions) {
+      const response = await createPayment(form("/api/pay/alipay/create", fields), "alipay");
+      expect(new URL(response.headers.get("location")!).searchParams.get("error")).toBe(
+        "PAYMENT_MODE_MISMATCH",
+      );
+    }
+  });
+
+  it("模拟通知可以与沙箱并存，但绝不能结算沙箱订单", async () => {
+    const session = await enterAlipay(false);
+    const mock = await createMockOrder(db, session.user.id, "alipay", randomUUID());
+    const sandbox = await createSandboxOrder(db, session.user.id, randomUUID(), {
+      appId: "test",
+      merchantId: "test",
+    });
+    const keys = getMockPaymentKeys("alipay", "mock");
+
+    for (const order of [mock, sandbox]) {
+      const payload = mockPaymentNotification(order, keys);
+      const response = await receiveNotification(
+        new NextRequest(origin + "/api/pay/alipay/notify", { method: "POST", ...payload }),
+        "alipay",
+      );
+      expect(response.status).toBe(order.mode === "mock" ? 200 : 400);
+    }
+
+    expect((await db.order.findUniqueOrThrow({ where: { id: sandbox.id } })).status).toBe(
+      "pending",
+    );
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { userId: session.user.id } })).balanceFen,
+    ).toBe(99);
+  });
+
+  it("全局开启沙箱时，模拟登录仍创建模拟订单并只扣本站余额", async () => {
+    const profile = await registerMockAccount(db, "alipay", "alipay_mock", "password123", "1.00");
+    browser.token = await completeLogin(db, "alipay", profile);
+    const response = await createPayment(
+      form("/api/pay/alipay/create", { checkoutKey: randomUUID() }),
+      "alipay",
+    );
+    const target = new URL(response.headers.get("location")!);
+    expect(target.origin).toBe(origin);
+    expect(target.pathname).toMatch(/^\/orders\//);
+    const order = await db.order.findUniqueOrThrow({
+      where: { id: target.pathname.split("/").at(-1)! },
+    });
+    expect(order.mode).toBe("mock");
+    expect(await act(order.id)).toBeNull();
+    expect(
+      (await db.mockAccount.findUniqueOrThrow({ where: { id: profile.providerUserId } }))
+        .balanceFen,
+    ).toBe(99);
+  });
+});
+
 describe("微信模拟支付接口", () => {
+  it("下单入口采用商品编号对应价格，不信任浏览器金额和名称", async () => {
+    const response = await createPayment(
+      form("/api/pay/wechat/create", {
+        checkoutKey: randomUUID(),
+        productId: "test-notebook",
+        amount: "0.01",
+        productName: "篡改商品名",
+      }),
+      "wechat",
+    );
+    expect(response.headers.get("location")).toContain("/orders/");
+    const saved = await db.order.findFirstOrThrow();
+    expect(saved).toMatchObject({
+      productId: "test-notebook",
+      productName: "测试笔记本",
+      amountFen: 100,
+    });
+    expect(await act(saved.id)).toBeNull();
+    expect((await db.mockAccount.findUniqueOrThrow({ where: { userId } })).balanceFen).toBe(0);
+  });
+
   it.each(["sandbox", "mock"])("支付宝为 %s 时，微信付款成功且重复付款只扣一次", async (mode) => {
     vi.stubEnv("PAYMENT_MODE", mode);
     const order = await createOrder();
