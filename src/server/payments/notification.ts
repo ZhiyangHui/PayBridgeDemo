@@ -31,7 +31,7 @@ export type PaymentNotice = {
   /** 通知或查单结果的唯一标识，用于记录已处理结果。 */
   dedupeKey: string;
   /** 省略时按已支付处理；沙箱查单或通知也可返回已关闭。 */
-  status?: "paid" | "closed";
+  status?: "paid" | "closed" | "failed";
 };
 
 /**
@@ -106,12 +106,14 @@ function alipayNotice(
 }
 
 /**
- * 验证微信支付通知签名，解密交易数据并核对应用和商户。
- * 校验通知时间、验签公钥标识、事件类型以及解密后的金额和状态。
- * @returns 用于更新订单的支付结果；这里只接受交易成功通知。
- * @throws 验签、解密或字段校验失败时向上抛出。
+ * 验证微信响应或通知的原始正文签名，以及时间戳和公钥标识。
+ * @throws AppError 超过五分钟、签名缺失或公钥不匹配时抛出 PAYMENT_INVALID。
  */
-function wechatNotice(raw: string, headers: Headers, config: NotificationConfig): PaymentNotice {
+export function verifyWechatSignature(
+  raw: string,
+  headers: Headers,
+  config: Pick<NotificationConfig, "publicKey" | "serial">,
+): void {
   // 从请求头读取微信签名参数，验签时使用未经修改的原始正文。
   const timestamp = headers.get("Wechatpay-Timestamp") ?? "";
   const nonce = headers.get("Wechatpay-Nonce") ?? "";
@@ -127,6 +129,16 @@ function wechatNotice(raw: string, headers: Headers, config: NotificationConfig)
   ) {
     throw new AppError("PAYMENT_INVALID");
   }
+}
+
+/**
+ * 验证微信支付通知签名，解密交易数据并核对应用和商户。
+ * 校验通知时间、验签公钥标识、事件类型以及解密后的金额和状态。
+ * @returns 用于更新订单的支付结果；这里只接受交易成功通知。
+ * @throws 验签、解密或字段校验失败时向上抛出。
+ */
+function wechatNotice(raw: string, headers: Headers, config: NotificationConfig): PaymentNotice {
+  verifyWechatSignature(raw, headers, config);
 
   // 签名通过后检查通知类型及加密资源格式。
   const envelope = z

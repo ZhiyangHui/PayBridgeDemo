@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 /**
  * 显示当前用户的订单金额、支付渠道和数据库中的付款状态。
  * 模拟待付款订单显示确认付款与取消按钮；微信模拟订单额外显示本站收银台二维码。
- * 支付宝沙箱待付款订单提供继续付款入口，并轮询服务端状态。
+ * 微信真实订单显示平台付款码；支付宝沙箱订单提供继续付款入口，两者都轮询服务端状态。
  * 未登录时跳回首页，订单不存在或不属于当前用户时显示 404。
  */
 export default async function OrderDetail({
@@ -49,6 +49,12 @@ export default async function OrderDetail({
   const wallet = mock
     ? await getDb().mockAccount.findUnique({ where: { userId: session.user.id } })
     : null;
+  const liveWechat =
+    order.provider === "wechat" && order.mode === "live" && paymentMode("wechat") === "live";
+  const liveQr =
+    liveWechat && order.status === "pending" && order.paymentUrl
+      ? await QRCode.toDataURL(order.paymentUrl, { width: 240, margin: 1 })
+      : null;
   const pending = mock && order.status === "pending";
   // 确认付款按钮只开放给与订单支付渠道一致的登录会话。
   const canPay = pending && order.provider === session.provider;
@@ -62,7 +68,7 @@ export default async function OrderDetail({
       : null;
 
   return (
-    <PageShell mode={order.mode === "mock" ? "MOCK MODE" : getEnv().PAYMENT_MODE.toUpperCase()}>
+    <PageShell mode={order.mode === "mock" ? "MOCK MODE" : order.mode.toUpperCase()}>
       <AccountNav />
       <span className={styles.status}>{orderStatusLabel[order.status]}</span>
       <h1 className={styles.heading}>测试商品</h1>
@@ -76,14 +82,17 @@ export default async function OrderDetail({
       {pending && (
         <>
           {qr && (
-            <Image
-              className={styles.qr}
-              src={qr}
-              alt="模拟收银台二维码"
-              width={180}
-              height={180}
-              unoptimized
-            />
+            <>
+              <Image
+                className={styles.qr}
+                src={qr}
+                alt="模拟收银台二维码"
+                width={180}
+                height={180}
+                unoptimized
+              />
+              <p className={styles.muted}>模拟付款码，可直接点击下方按钮付款。</p>
+            </>
           )}
           <form
             action={`/api/mock/pay/${order.id}`}
@@ -100,6 +109,28 @@ export default async function OrderDetail({
               取消订单
             </button>
           </form>
+          <OrderPoller id={order.id} />
+        </>
+      )}
+      {liveWechat && order.status === "pending" && (
+        <>
+          {liveQr && (
+            <Image
+              className={styles.qr}
+              src={liveQr}
+              alt="微信付款二维码"
+              width={240}
+              height={240}
+              unoptimized
+            />
+          )}
+          <p className={styles.muted}>使用微信扫码付款，确认后页面会自动更新。</p>
+          {!liveQr && session.provider === "wechat" && (
+            <form action="/api/pay/wechat/create" method="post">
+              <input type="hidden" name="orderId" value={order.id} />
+              <button className={styles.button}>重新获取付款码</button>
+            </form>
+          )}
           <OrderPoller id={order.id} />
         </>
       )}

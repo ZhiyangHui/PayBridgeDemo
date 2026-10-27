@@ -11,6 +11,9 @@ import { getMockPaymentKeys } from "./mock-keys";
 import { mockPaymentNotification } from "./mock-provider";
 import { handleMockNotification } from "./handler";
 import { paymentMode } from "./mode";
+import { createRemoteOrder } from "../orders/remote";
+import { createWechatPayment, handleWechatNotification } from "./wechat";
+import { wechatPaymentConfig } from "./wechat-client";
 import { createSandboxOrder } from "../orders/sandbox";
 import { alipayPaymentConfig, alipayCheckoutUrl, handleAlipayNotification } from "./alipay";
 import type { LoginProvider } from "../auth/types";
@@ -51,10 +54,12 @@ function formFailure(cause: unknown, path: string) {
 
 /**
  * 处理下单表单，创建或读取订单后跳转对应收银台。
- * 先检查请求来源、用户会话和支付渠道，再区分支付宝沙箱与本地模拟支付。
+ * 先检查请求来源、用户会话和支付渠道，再区分微信 Native、支付宝沙箱与本地模拟支付。
  * @returns 成功时跳转收银台或订单页；失败时跳回结算页并附带错误码。
  */
 export async function createPayment(request: NextRequest, provider: LoginProvider) {
+  let failurePath = "/checkout";
+
   try {
     requireSameOrigin(request);
     const session = await currentSession();
@@ -92,7 +97,24 @@ export async function createPayment(request: NextRequest, provider: LoginProvide
       return NextResponse.redirect(alipayCheckoutUrl(order, config), 303);
     }
 
-    // 当前仅实现模拟付款和支付宝沙箱付款，其他模式返回未接入。
+    // 微信 Native 先保存订单，再调用平台下单，金额和收款身份都来自服务端。
+    if (mode === "live" && provider === "wechat") {
+      const config = wechatPaymentConfig();
+      const id = String(form.get("orderId") ?? "");
+      const order = id
+        ? await ownOrder(getDb(), session.user.id, id)
+        : await createRemoteOrder(getDb(), session.user.id, String(form.get("checkoutKey") ?? ""), {
+            ...config,
+            provider: "wechat",
+            mode: "live",
+          });
+      failurePath = `/orders/${order.id}`;
+      await createWechatPayment(getDb(), order, config);
+
+      return NextResponse.redirect(new URL(failurePath, getEnv().APP_URL), 303);
+    }
+
+    // 未实现的平台模式明确报错，不能悄悄切回模拟付款。
     if (mode !== "mock") {
       throw new AppError("PAYMENT_UNAVAILABLE");
     }
@@ -106,7 +128,7 @@ export async function createPayment(request: NextRequest, provider: LoginProvide
 
     return NextResponse.redirect(new URL(`/orders/${order.id}`, getEnv().APP_URL), 303);
   } catch (cause) {
-    return formFailure(cause, "/checkout");
+    return formFailure(cause, failurePath);
   }
 }
 
@@ -134,7 +156,7 @@ export async function simulatePayment(request: NextRequest, id: string) {
         throw new AppError("PAYMENT_CHANNEL_MISMATCH");
       }
 
-      const keys = getMockPaymentKeys();
+      const keys = getMockPaymentKeys(order.provider);
       const notification = mockPaymentNotification(order, keys);
       // 构造通知请求并调用共用处理器，不能由按钮直接将订单改为已支付。
       const incoming = new Request(new URL(`/api/pay/${order.provider}/notify`, getEnv().APP_URL), {
@@ -170,7 +192,7 @@ export async function updateBalance(request: NextRequest) {
 
 /**
  * 接收支付平台通知，按渠道和环境选择验签及订单处理器。
- * @returns 支付宝成功返回 success；微信模拟成功返回 SUCCESS JSON；失败返回平台可识别的 HTTP 400 响应。
+ * @returns 支付宝成功返回 success；微信真实成功返回 HTTP 204，模拟成功返回 SUCCESS JSON；失败返回平台可识别的 HTTP 400 响应。
  */
 export async function receiveNotification(request: NextRequest, provider: LoginProvider) {
   try {
@@ -181,11 +203,15 @@ export async function receiveNotification(request: NextRequest, provider: LoginP
       return await handleAlipayNotification(getDb(), request, alipayPaymentConfig());
     }
 
+    if (mode === "live" && provider === "wechat") {
+      return await handleWechatNotification(getDb(), request, wechatPaymentConfig());
+    }
+
     if (mode !== "mock") {
       throw new AppError("PAYMENT_UNAVAILABLE");
     }
 
-    return await handleMockNotification(getDb(), request, provider, getMockPaymentKeys());
+    return await handleMockNotification(getDb(), request, provider, getMockPaymentKeys(provider));
   } catch (cause) {
     errorResponse(cause);
 

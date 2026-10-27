@@ -29,7 +29,7 @@ export default async function Checkout({
 
   const mode = paymentMode(session.provider);
 
-  if (mode === "live") {
+  if (mode === "live" && session.provider !== "wechat") {
     redirect("/dashboard");
   }
 
@@ -37,7 +37,7 @@ export default async function Checkout({
   const checkoutKey = randomUUID();
 
   return (
-    <PageShell mode={mode === "mock" ? "MOCK MODE" : "ALIPAY SANDBOX"}>
+    <PageShell mode={mode === "mock" ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
       <h1 className={styles.heading}>确认购买</h1>
       <p>{TEST_ITEM.name}</p>
@@ -45,6 +45,7 @@ export default async function Checkout({
       {mode === "sandbox" && (
         <p className={styles.muted}>使用支付宝沙箱买家账号付款，不扣本站模拟余额。</p>
       )}
+      {mode === "live" && <p className={styles.muted}>使用微信扫码付款，将支付真实的 0.01 元。</p>}
       <FormMessage code={(await searchParams).error} />
       <div className={styles.row}>
         <form action={`/api/pay/${session.provider}/create`} method="post">

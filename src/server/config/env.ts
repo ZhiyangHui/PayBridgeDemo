@@ -36,6 +36,7 @@ const wechatFields = [
   "WECHAT_PAY_CERT_SERIAL_NO",
   "WECHAT_PAY_PRIVATE_KEY_PATH",
   "WECHAT_PAY_PLATFORM_PUBLIC_KEY_PATH",
+  "WECHAT_PAY_PLATFORM_KEY_ID",
   "WECHAT_PAY_NOTIFY_URL",
 ];
 
@@ -129,6 +130,37 @@ export function parseEnv(source: Record<string, string | undefined>) {
   }
 
   if (wechatMode === "live") {
+    // 网站登录与支付可使用不同 AppID，分别检查各自的凭据。
+    for (const key of ["WECHAT_APP_ID", "WECHAT_PAY_APP_ID"]) {
+      if (!/^wx[a-f0-9]{16}$/i.test(source[key] ?? "")) {
+        invalid.add(key);
+      }
+    }
+
+    if (!/^[a-f0-9]{32}$/i.test(source.WECHAT_APP_SECRET ?? "")) {
+      invalid.add("WECHAT_APP_SECRET");
+    }
+
+    if (!/^\d{8,16}$/.test(source.WECHAT_PAY_MCH_ID ?? "")) {
+      invalid.add("WECHAT_PAY_MCH_ID");
+    }
+
+    if (!/^[a-f0-9]{16,64}$/i.test(source.WECHAT_PAY_CERT_SERIAL_NO ?? "")) {
+      invalid.add("WECHAT_PAY_CERT_SERIAL_NO");
+    }
+
+    if (
+      !/^(PUB_KEY_ID_[A-Za-z0-9_]+|[A-Fa-f0-9]{16,64})$/.test(
+        source.WECHAT_PAY_PLATFORM_KEY_ID ?? "",
+      )
+    ) {
+      invalid.add("WECHAT_PAY_PLATFORM_KEY_ID");
+    }
+
+    if (!validUrl(config.APP_URL, true)) {
+      invalid.add("APP_URL");
+    }
+
     if (Buffer.byteLength(source.WECHAT_PAY_API_V3_KEY ?? "", "utf8") !== 32) {
       invalid.add("WECHAT_PAY_API_V3_KEY");
     }

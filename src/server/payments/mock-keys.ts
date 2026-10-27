@@ -1,17 +1,19 @@
 import "server-only";
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { getEnv } from "../config/env";
+import { paymentMode } from "./mode";
+import type { LoginProvider } from "../auth/types";
 import { AppError } from "../errors/app-error";
 import type { MockPaymentKeys } from "./mock-provider";
 
 /**
  * 读取本地模拟支付密钥，文件不存在时生成并保存一套测试密钥。
  * 返回 RSA 公私钥、32 字节 AES 密钥和固定的模拟商户标识。
- * @throws AppError 全站 PAYMENT_MODE 不是 mock 时抛出 MOCK_ONLY；文件读取和解析异常继续上抛。
+ * @param provider 需要使用测试密钥的支付渠道。
+ * @throws AppError 该渠道未启用模拟支付时抛出 MOCK_ONLY；文件读取和解析异常继续上抛。
  */
-export function getMockPaymentKeys(): MockPaymentKeys {
-  if (getEnv().PAYMENT_MODE !== "mock") {
+export function getMockPaymentKeys(provider: LoginProvider): MockPaymentKeys {
+  if (paymentMode(provider) !== "mock") {
     throw new AppError("MOCK_ONLY");
   }
 

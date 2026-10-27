@@ -10,16 +10,23 @@
   line-height: 1.75;
 }
 
-/* 支持换行的登录按钮区域。 */
+/* 四个登录入口按两列排列，小屏幕改为单列。 */
 .actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.75rem;
   margin-top: 1.5rem;
 }
 
 .loginButton {
-  display: inline-block;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 4.5rem;
+  border: 0;
+  font: inherit;
+  text-align: center;
   border-radius: var(--radius-control);
   background: #17212b;
   padding: 0.75rem 1.25rem;
@@ -27,6 +34,24 @@
   text-decoration: none;
 }
 
-.loginButton:hover {
+.loginButton:not(:disabled):hover {
   background: #334155;
+}
+
+/* 未配置的入口保持可见，但不允许点击。 */
+.loginButton:disabled {
+  background: var(--color-subtle);
+  color: var(--color-muted);
+  cursor: not-allowed;
+}
+
+.buttonHint {
+  margin-top: 0.35rem;
+  font-size: 0.75rem;
+}
+
+@media (max-width: 380px) {
+  .actions {
+    grid-template-columns: 1fr;
+  }
 }

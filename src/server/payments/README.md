@@ -1,3 +1,3 @@
 # 支付
 
-alipay 对接沙箱收银台、通知和主动查单；notification 验签与解析；mode 决定各渠道的支付环境；routes 处理请求。mock-provider 和 handler 保留本地模拟支付，模拟签名不能用于沙箱订单。
+wechat-client 发送和验证微信 API v3 请求；wechat 处理 Native 下单、通知和查单。alipay 对接支付宝沙箱。notification 验签解密，routes 处理请求，mode 选择环境。mock-provider 和 handler 保留模拟流程。

@@ -3,12 +3,14 @@ import { currentSession } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
 import { paymentMode } from "@/server/payments/mode";
 import { alipayPaymentConfig, refreshAlipayOrder } from "@/server/payments/alipay";
+import { refreshWechatOrder } from "@/server/payments/wechat";
+import { wechatPaymentConfig } from "@/server/payments/wechat-client";
 import { ownOrder } from "@/server/orders/service";
 import { AppError } from "@/server/errors/app-error";
 import { errorResponse } from "@/server/errors/response";
 
 /**
- * 查询当前用户订单的最新状态，支付宝沙箱订单按频率限制主动查单。
+ * 查询当前用户订单的最新状态，微信真实订单和支付宝沙箱订单按频率限制主动查单。
  * 返回禁止缓存的状态 JSON；未登录、无权读取或查单失败时返回统一错误响应。
  */
 export async function GET(_request: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -29,6 +31,11 @@ export async function GET(_request: NextRequest, context: { params: Promise<{ id
       paymentMode("alipay") === "sandbox"
     ) {
       order = await refreshAlipayOrder(getDb(), order, alipayPaymentConfig());
+    }
+
+    // 微信正式订单采用已验签的查单结果补回漏通知。
+    if (order.mode === "live" && order.provider === "wechat" && paymentMode("wechat") === "live") {
+      order = await refreshWechatOrder(getDb(), order, wechatPaymentConfig());
     }
 
     return Response.json({ status: order.status }, { headers: { "Cache-Control": "no-store" } });

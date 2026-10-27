@@ -1,3 +1,3 @@
 # 登录与会话
 
-store 管理 state 和会话；mock-accounts 管理模拟注册及密码验证；mock 签发和验证测试授权码；alipay 负责真实授权。两种模式共用 callback，真实渠道不开放模拟账号接口。
+store 管理 state 和会话；wechat 对接网站应用扫码授权和用户资料；alipay 负责支付宝授权。mock-accounts 管理模拟账号，mock 签发测试授权码。真实和模拟登录共用回调入口。

@@ -105,6 +105,8 @@ model Order {
   paymentSellerId String?
   /// 控制向平台查单的频率，避免多窗口重复查询。
   lastQueriedAt   DateTime?
+  /// 微信 Native 下单返回的付款链接，仅由已验签的平台响应写入。
+  paymentUrl      String?
   /// 确认支付成功的时间，待付款或已关闭时为空。
   paidAt          DateTime?
   createdAt       DateTime              @default(now())

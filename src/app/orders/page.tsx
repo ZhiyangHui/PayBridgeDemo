@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
 import { getDb } from "@/server/db/client";
-import { getEnv } from "@/server/config/env";
+import { paymentMode } from "@/server/payments/mode";
 import { formatMoney } from "@/server/orders/money";
 import { PageShell } from "@/components/PageShell";
 import { AccountNav } from "@/components/AccountNav";
@@ -40,10 +40,10 @@ export default async function Orders({
     take: 50,
   });
 
+  const mode = paymentMode(session.provider);
+
   return (
-    <PageShell
-      mode={getEnv().PAYMENT_MODE === "mock" ? "MOCK MODE" : getEnv().PAYMENT_MODE.toUpperCase()}
-    >
+    <PageShell mode={mode === "mock" ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
       <h1 className={styles.heading}>我的订单</h1>
       {orders.length === 0 && <p className={styles.muted}>还没有订单，去商店看看吧。</p>}

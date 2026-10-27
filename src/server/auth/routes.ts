@@ -5,6 +5,7 @@ import { validateAlipayLoginCredentials } from "../config/credentials";
 import { getDb } from "../db/client";
 import { AppError } from "../errors/app-error";
 import { errorResponse } from "../errors/response";
+import { wechatAuthorizeUrl, exchangeWechatCode, wechatLoginConfig } from "./wechat";
 import { alipayAuthorizeUrl, exchangeAlipayCode } from "./alipay";
 import { createMockCode, exchangeMockCode } from "./mock";
 import { registerMockAccount, loginMockAccount } from "./mock-accounts";
@@ -55,7 +56,7 @@ function loginFailure(cause: unknown) {
 }
 
 /**
- * 创建一次登录请求，并跳转模拟登录页或支付宝授权页。
+ * 创建一次登录请求，并跳转模拟登录页或对应平台的官方授权页。
  * 保存授权 state 和浏览器绑定信息，将绑定值写入 Cookie。
  * @param sandbox 为 true 时单独发起支付宝沙箱 OAuth 授权。
  * @returns 登录页的重定向；配置或渠道不支持时跳到登录失败页。
@@ -71,11 +72,6 @@ export async function startLogin(request: NextRequest, provider: LoginProvider, 
       return NextResponse.redirect(canonical);
     }
 
-    // 真实微信登录尚未实现；配置为真实模式时返回未接入错误。
-    if (!isMockLogin(provider) && provider === "wechat") {
-      throw new AppError("FEATURE_UNAVAILABLE");
-    }
-
     if (sandbox && (provider !== "alipay" || env.PAYMENT_MODE === "live")) {
       throw new AppError("NOT_FOUND");
     }
@@ -83,17 +79,25 @@ export async function startLogin(request: NextRequest, provider: LoginProvider, 
     // 先确定这次登录的模式，再将模式与 state 一起保存。
     let mode: "mock" | "sandbox" | "live" = "mock";
 
-    if (sandbox || !isMockLogin(provider)) {
+    if (provider === "wechat" && !isMockLogin(provider)) {
+      mode = "live";
+      wechatLoginConfig();
+    } else if (sandbox || !isMockLogin(provider)) {
       mode = env.PAYMENT_MODE === "live" ? "live" : "sandbox";
       validateAlipayLoginCredentials(process.env, mode === "sandbox");
     }
 
     const { state, browser } = await createLoginState(getDb(), provider, mode);
     const callback = new URL(`/api/auth/${provider}/callback`, env.APP_URL).toString();
-    const destination =
-      mode === "mock"
-        ? new URL(`/mock/login/${provider}?state=${state}`, env.APP_URL).toString()
-        : alipayAuthorizeUrl(state, callback, mode === "sandbox");
+    let destination = new URL(`/mock/login/${provider}?state=${state}`, env.APP_URL).toString();
+
+    if (mode !== "mock") {
+      destination =
+        provider === "wechat"
+          ? wechatAuthorizeUrl(state, callback, wechatLoginConfig())
+          : alipayAuthorizeUrl(state, callback, mode === "sandbox");
+    }
+
     const response = NextResponse.redirect(destination, 303);
     // 将浏览器绑定值写入 Cookie，回调必须同时带上它和正确的 state。
     response.cookies.set(`oauth_${provider}`, browser, cookieOptions(STATE_SECONDS));
@@ -107,7 +111,7 @@ export async function startLogin(request: NextRequest, provider: LoginProvider, 
 
 /**
  * 处理平台授权回调，校验 state、换取用户资料并创建本站会话。
- * 使用数据库保存的授权模式选择模拟或支付宝换码流程。
+ * 使用数据库保存的授权模式选择模拟、微信或支付宝换码流程。
  * @returns 成功时设置会话 Cookie 并跳转商店；失败时跳到登录失败页。
  */
 export async function finishLogin(request: NextRequest, provider: LoginProvider) {
@@ -128,6 +132,10 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
 
     const code = request.nextUrl.searchParams.get(provider === "alipay" ? "auth_code" : "code");
 
+    if (!code && provider === "wechat") {
+      throw new AppError("OAUTH_DENIED");
+    }
+
     if (!code || code.length > 4096) {
       throw new AppError("OAUTH_CODE_INVALID");
     }
@@ -137,6 +145,12 @@ export async function finishLogin(request: NextRequest, provider: LoginProvider)
     // 按该次登录记录的模式换取资料，不能由回调参数指定登录方式。
     if (mode === "mock" && isMockLogin(provider)) {
       profile = exchangeMockCode(code, provider, state, getEnv().SESSION_SECRET);
+    } else if (provider === "wechat" && mode === "live") {
+      if (getEnv().WECHAT_MODE !== "live") {
+        throw new AppError("OAUTH_STATE_INVALID");
+      }
+
+      profile = await exchangeWechatCode(code);
     } else if (provider === "alipay" && (mode === "sandbox" || mode === "live")) {
       if (mode === "live" && getEnv().PAYMENT_MODE !== "live") {
         throw new AppError("OAUTH_STATE_INVALID");

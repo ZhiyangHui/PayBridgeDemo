@@ -10,31 +10,21 @@ import { TEST_ITEM } from "../orders/service";
 import { settleSandboxPayment, type PaymentMerchant } from "../orders/sandbox";
 import { verifyAlipayNotification } from "./notification";
 
-/** 支付宝下单、查单和通知验签所需的服务端配置。 */
+/** 支付配置只来自服务端，不允许浏览器指定网关、收款人或金额。 */
 export type AlipayPaymentConfig = PaymentMerchant & {
-  /** 当前应用的 PKCS8 私钥，用于请求签名。 */
   privateKey: string;
-  /** 支付宝公钥，用于验证平台返回的数据。 */
   publicKey: string;
-  /** 当前支付环境的 API 网关完整地址。 */
   gateway: string;
-  /** 接收服务器异步支付通知的公网地址。 */
   notifyUrl: string;
-  /** 付款后浏览器跳回的站内页面地址。 */
   returnUrl: string;
 };
 
-/**
- * 读取支付宝沙箱付款所需的应用、商户、密钥和回调配置。
- * 将支付宝公钥转换为 PEM 格式，返回供下单、验签和查单使用的配置。
- * @throws AppError 当前支付环境不是 sandbox 时抛出 PAYMENT_UNAVAILABLE；环境配置错误由 getEnv 抛出。
- */
+/** 当前阶段只开放支付宝沙箱付款，避免误触发正式资金交易。 */
 export function alipayPaymentConfig(): AlipayPaymentConfig {
   if (getEnv().PAYMENT_MODE !== "sandbox") {
     throw new AppError("PAYMENT_UNAVAILABLE");
   }
 
-  // 读取支付宝验签公钥；控制台复制的裸公钥需要补齐 PEM 头尾。
   const raw = process.env.ALIPAY_PUBLIC_KEY!;
   const publicKey = createPublicKey(
     raw.includes("-----BEGIN")
@@ -55,11 +45,7 @@ export function alipayPaymentConfig(): AlipayPaymentConfig {
   };
 }
 
-/**
- * 创建用于支付宝付款和查单的 SDK 客户端。
- * @param config 服务端读取的应用身份、密钥和网关配置。
- * @returns 使用 PKCS8 私钥、保留原字段名、请求超时为 8 秒的客户端。
- */
+/** PC 网站支付按官方页面接口签名；查单响应必须经过支付宝公钥验签。 */
 function client(config: AlipayPaymentConfig) {
   return new AlipaySdk({
     appId: config.appId,
@@ -72,11 +58,7 @@ function client(config: AlipayPaymentConfig) {
   });
 }
 
-/**
- * 检查订单是否为当前支付宝应用和商户的沙箱订单。
- * 校验支付环境、支付渠道、币种、应用 ID 和商户 ID。
- * @throws AppError 任意字段不符合要求时抛出 PAYMENT_INVALID。
- */
+/** 同一订单只允许在创建时的沙箱应用下继续付款或查单。 */
 function checkOrder(order: Order, config: PaymentMerchant): void {
   if (
     order.mode !== "sandbox" ||
@@ -89,13 +71,7 @@ function checkOrder(order: Order, config: PaymentMerchant): void {
   }
 }
 
-/**
- * 为待付款订单生成支付宝官方收银台地址。
- * 金额和商品信息取自服务端，返回地址附带本站订单 ID。
- * @param order 已保存到数据库的订单。
- * @returns 带 SDK 签名的收银台 URL，不会在此处将订单标记为已支付。
- * @throws AppError 订单身份不匹配时抛出 PAYMENT_INVALID，非待付款状态时抛出 CONFLICT。
- */
+/** 生成支付宝官方收银台地址；浏览器返回地址只用于展示，不用于确认已付款。 */
 export function alipayCheckoutUrl(order: Order, config: AlipayPaymentConfig): string {
   checkOrder(order, config);
 
@@ -103,14 +79,12 @@ export function alipayCheckoutUrl(order: Order, config: AlipayPaymentConfig): st
     throw new AppError("CONFLICT");
   }
 
-  // 返回页面只接收本站订单 ID，支付结果仍由通知或查单确认。
   const returnUrl = new URL(config.returnUrl);
   returnUrl.searchParams.set("order", order.id);
 
   return client(config).pageExecute("alipay.trade.page.pay", "GET", {
     notifyUrl: config.notifyUrl,
     returnUrl: returnUrl.toString(),
-    // 提交订单号、固定金额和商品名，并设置收银台付款有效期为 15 分钟。
     bizContent: {
       outTradeNo: order.outTradeNo,
       totalAmount: formatMoney(order.amountFen),
@@ -121,12 +95,7 @@ export function alipayCheckoutUrl(order: Order, config: AlipayPaymentConfig): st
   });
 }
 
-/**
- * 读取支付宝通知，验证签名和业务字段，再更新沙箱订单。
- * @param request 支付宝发送的原始表单请求。
- * @returns 处理成功后返回纯文本 success；重复的有效通知同样返回 success。
- * @throws 通知校验或订单更新失败时向上抛出，由接口返回失败响应。
- */
+/** 接收异步通知，验签及商户校验后才进入订单事务。 */
 export async function handleAlipayNotification(
   db: PrismaClient,
   request: Request,
@@ -138,12 +107,7 @@ export async function handleAlipayNotification(
   return new Response("success", { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
-/**
- * 向支付宝查询订单状态，并将有效结果转换为本站的支付通知数据。
- * 校验响应签名、商户订单号、金额和状态；待支付或交易不存在时返回 null。
- * @returns 已支付或已关闭的支付结果，本函数不写数据库。
- * @throws AppError 请求失败、验签失败或结果不符合要求时抛出 PAYMENT_PROVIDER_ERROR。
- */
+/** 查单只接受已验签的已知状态；不存在的交易仍保留待支付。 */
 export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig) {
   checkOrder(order, config);
   let result: unknown;
@@ -154,14 +118,12 @@ export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig
       { bizContent: { outTradeNo: order.outTradeNo } },
       { validateSign: true },
     );
-    // 先读取业务码，交易尚未建立时保留本站订单的待付款状态。
     const reply = z.object({ code: z.string(), sub_code: z.string().optional() }).parse(result);
 
     if (reply.code === "40004" && reply.sub_code === "ACQ.TRADE_NOT_EXIST") {
       return null;
     }
 
-    // 校验成功响应的订单号、交易号、收款商户和已知交易状态。
     const trade = z
       .object({
         code: z.literal("10000"),
@@ -173,7 +135,6 @@ export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig
       })
       .parse(result);
 
-    // 将平台返回的元金额转成分，与订单金额逐分比较。
     if (parseMoney(trade.total_amount) !== order.amountFen) {
       throw new AppError("PAYMENT_INVALID");
     }
@@ -182,7 +143,6 @@ export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig
       return null;
     }
 
-    // 将支付宝交易状态转换成本站订单状态，交给订单模块保存。
     return {
       provider: "alipay" as const,
       outTradeNo: order.outTradeNo,
@@ -193,7 +153,6 @@ export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig
       dedupeKey: `query:${trade.trade_no}:${trade.trade_status}`,
     };
   } catch (cause) {
-    // 提取允许记录的错误码和追踪号，不记录完整请求或响应。
     const error = cause as { traceId?: unknown };
     const reply = z
       .object({
@@ -223,11 +182,7 @@ export async function queryAlipayOrder(order: Order, config: AlipayPaymentConfig
   }
 }
 
-/**
- * 查询待付款订单的支付宝状态，必要时更新数据库并返回最新订单。
- * 同一订单十秒内最多发起一次平台查询；非待付款订单直接返回。
- * @throws 查单或入库失败时向上抛出，不把未知结果当作付款成功。
- */
+/** 每个待付款订单最多十秒查一次平台；超时和未知结果不改订单状态。 */
 export async function refreshAlipayOrder(
   db: PrismaClient,
   order: Order,
@@ -239,7 +194,6 @@ export async function refreshAlipayOrder(
     return order;
   }
 
-  // 用条件更新领取本轮查单机会，其他并发请求读取现有订单。
   const claimed = await db.order.updateMany({
     where: {
       id: order.id,
@@ -252,7 +206,6 @@ export async function refreshAlipayOrder(
   if (claimed.count) {
     const notice = await queryAlipayOrder(order, config);
 
-    // 只有查到明确的已支付或已关闭结果时才写入数据库。
     if (notice) {
       await settleSandboxPayment(db, notice, config);
     }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { UserAvatar } from "@/components/UserAvatar";
 import { redirect } from "next/navigation";
 import { currentSession } from "@/server/auth/session";
 import { paymentMode } from "@/server/payments/mode";
@@ -14,7 +15,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * 显示当前用户昵称、测试商品和购买入口。
- * 模拟支付显示可调整的本站余额，支付宝沙箱显示使用沙箱余额的说明。
+ * 显示用户头像和登录渠道；模拟支付显示本站余额，支付宝沙箱显示沙箱余额说明。
  * 未登录时跳回首页，模拟账号不存在时提示重新注册。
  */
 export default async function Dashboard({
@@ -36,9 +37,17 @@ export default async function Dashboard({
     : null;
 
   return (
-    <PageShell mode={mock ? "MOCK MODE" : "ALIPAY SANDBOX"}>
+    <PageShell mode={mock ? "MOCK MODE" : mode.toUpperCase()}>
       <AccountNav />
-      <h1 className={styles.heading}>{session.user.nickname}</h1>
+      <div className={styles.profile}>
+        <UserAvatar src={session.user.avatar} provider={session.provider} />
+        <div>
+          <h1 className={styles.heading}>{session.user.nickname}</h1>
+          <p className={styles.muted}>
+            {session.provider === "wechat" ? "微信登录" : "支付宝登录"}
+          </p>
+        </div>
+      </div>
       <FormMessage code={(await searchParams).error} />
       {account && (
         <section className={styles.balance}>
@@ -69,7 +78,7 @@ export default async function Dashboard({
       <section className={styles.card}>
         <h2>{TEST_ITEM.name}</h2>
         <p className={styles.price}>¥{formatMoney(TEST_ITEM.amountFen)}</p>
-        {account || mode === "sandbox" ? (
+        {account || mode === "sandbox" || (mode === "live" && session.provider === "wechat") ? (
           <Link className={styles.button} href="/checkout">
             购买
           </Link>
