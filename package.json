@@ -3,8 +3,7 @@
   "version": "0.1.0",
   "description": "用 Next.js 做一个微信、支付宝登录和支付的小项目，按试做任务 PDF 的要求开发。",
   "scripts": {
-    "predev": "tsx scripts/prepare-dev.ts",
-    "dev": "next dev",
+    "dev": "tsx scripts/dev.ts",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",

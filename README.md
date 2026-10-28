@@ -31,6 +31,10 @@ npm run dev
 
 Open [localhost:3000](http://localhost:3000). Mock mode needs no provider account or payment keys. Register locally, set a balance, and try a purchase. The database is prepared automatically.
 
+`./start.sh` 与 `npm run dev` 相同。沙箱模式自动启动隧道并同步回调，Ctrl+C 一起关闭；手机测试用 `npm run dev -- --public`。
+
+`./start.sh` and `npm run dev` share the same launcher. Sandbox mode manages the tunnel and callback URLs; Ctrl+C stops both. Use `npm run dev -- --public` for phone testing.
+
 支付宝沙箱配置见 [接入说明 / Setup](docs/setup.md)。首页选平台，再选模拟或沙箱。沙箱须先在 `.env.local` 配好并重启；模拟入口始终只扣本站余额。
 
 See the setup guide for Alipay sandbox payments. Choose a provider, then mock or sandbox. Configure sandbox in `.env.local` and restart first. The mock entry always uses the local balance.

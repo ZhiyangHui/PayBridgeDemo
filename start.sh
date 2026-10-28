@@ -3,7 +3,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 
-# 先检查运行条件，配置内容由现有 predev 校验。
+# 先检查运行条件，具体配置由启动管理器校验。
 if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo "启动失败：请先安装 Node.js 24（包含 npm）。" >&2
   exit 1
@@ -21,7 +21,5 @@ if [[ ! -f .env.local ]]; then
   exit 1
 fi
 
-# 固定端口，避免端口占用时切换端口导致公网隧道连接到错误服务。
-echo "准备启动：http://localhost:3000（按 Ctrl+C 停止）"
-echo "支付宝公网回调还需要单独保持 Cloudflare 隧道运行。"
-exec npm run dev -- --hostname 127.0.0.1 --port 3000
+# 与 npm run dev 共用启动管理；沙箱模式自动启动隧道并同步回调地址。
+exec node --import tsx scripts/dev.ts "$@"
