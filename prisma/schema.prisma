@@ -15,12 +15,13 @@ enum Provider {
   alipay
 }
 
-/// 订单状态，支付成功后不允许回退。
+/// 订单状态；模拟订单支付成功后可全额退款，退款后不能再次支付。
 enum OrderStatus {
   pending
   paid
   failed
   closed
+  refunded
 }
 
 /// 保存本站用户昵称和头像，并关联平台身份、会话、订单及可选的模拟账号。
@@ -117,6 +118,8 @@ model Order {
   paymentUrl      String?
   /// 确认支付成功的时间，待付款或已关闭时为空。
   paidAt          DateTime?
+  /// 模拟全额退款完成时间；保留原付款时间和交易号。
+  refundedAt      DateTime?
   createdAt       DateTime              @default(now())
   updatedAt       DateTime              @updatedAt
   notifications   PaymentNotification[]

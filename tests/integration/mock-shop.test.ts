@@ -16,6 +16,7 @@ import {
 import { mockPaymentNotification } from "../../lib/payments/mock-provider";
 import { handleMockNotification } from "../../lib/payments/handler";
 import { TEST_PRODUCTS } from "../../lib/orders/catalog";
+import { refundMockOrder } from "../../lib/orders/refund";
 import { readOrderHistory } from "../../lib/orders/history";
 import { createSandboxOrder } from "../../lib/orders/sandbox";
 import { createRemoteOrder } from "../../lib/orders/remote";
@@ -330,5 +331,85 @@ describe("多商品与历史订单", () => {
     expect((await readOrderHistory(db, user, "unknown", "-1")).page).toBe(1);
     expect((await readOrderHistory(db, user, "all", "999999")).page).toBe(2);
     expect((await readOrderHistory(db, user, "closed")).total).toBe(0);
+  });
+});
+
+describe("模拟全额退款", () => {
+  it.each(["wechat", "alipay"] as const)(
+    "%s 退回原金额，重复退款和旧付款通知不再记账",
+    async (provider) => {
+      const user = await account("refund_buyer", "10.00", provider);
+      const order = await createMockOrder(db, user, provider, randomUUID(), "test-notebook");
+      await pay(order);
+      const paid = await ownOrder(db, user, order.id);
+      await refundMockOrder(db, user, order.id);
+      const refunded = await ownOrder(db, user, order.id);
+      expect(refunded).toMatchObject({
+        status: "refunded",
+        paidAt: paid.paidAt,
+        providerTradeNo: paid.providerTradeNo,
+      });
+      expect(refunded.refundedAt).toBeInstanceOf(Date);
+      await refundMockOrder(db, user, order.id);
+      await pay(order);
+      expect((await ownOrder(db, user, order.id)).refundedAt).toEqual(refunded.refundedAt);
+      expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
+        1000,
+      );
+      expect(await db.paymentNotification.count()).toBe(1);
+      expect((await readOrderHistory(db, user, "refunded")).total).toBe(1);
+      expect((await readOrderHistory(db, user, "paid")).total).toBe(0);
+    },
+  );
+
+  it("重复并发请求最多退一次，失败请求可以安全重试", async () => {
+    const user = await account();
+    const order = await createMockOrder(db, user, "alipay", randomUUID());
+    await pay(order);
+    const results = await Promise.allSettled([
+      refundMockOrder(db, user, order.id),
+      refundMockOrder(db, user, order.id),
+    ]);
+    expect(results.some((result) => result.status === "fulfilled")).toBe(true);
+    await refundMockOrder(db, user, order.id);
+    expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
+      100,
+    );
+  });
+
+  it.each(["pending", "closed", "failed"] as const)("%s 订单不能退款", async (status) => {
+    const user = await account();
+    const order = await createMockOrder(db, user, "alipay", randomUUID());
+    await db.order.update({ where: { id: order.id }, data: { status } });
+    await expect(refundMockOrder(db, user, order.id)).rejects.toMatchObject({
+      code: "REFUND_NOT_ALLOWED",
+    });
+    expect((await ownOrder(db, user, order.id)).status).toBe(status);
+    expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
+      100,
+    );
+  });
+
+  it("拒绝其他用户退款和沙箱订单退款", async () => {
+    const user = await account();
+    const other = await account("other");
+    const order = await createMockOrder(db, user, "alipay", randomUUID());
+    await pay(order);
+    await expect(refundMockOrder(db, other, order.id)).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await db.order.update({ where: { id: order.id }, data: { mode: "sandbox" } });
+    await expect(refundMockOrder(db, user, order.id)).rejects.toMatchObject({ code: "MOCK_ONLY" });
+    expect((await ownOrder(db, user, order.id)).status).toBe("paid");
+    expect((await db.mockAccount.findUniqueOrThrow({ where: { userId: user } })).balanceFen).toBe(
+      99,
+    );
+  });
+
+  it("钱包缺失时回滚退款状态", async () => {
+    const user = await account();
+    const order = await createMockOrder(db, user, "alipay", randomUUID());
+    await pay(order);
+    await db.mockAccount.delete({ where: { userId: user } });
+    await expect(refundMockOrder(db, user, order.id)).rejects.toMatchObject({ code: "MOCK_ONLY" });
+    expect(await ownOrder(db, user, order.id)).toMatchObject({ status: "paid", refundedAt: null });
   });
 });

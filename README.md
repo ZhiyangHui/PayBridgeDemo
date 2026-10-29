@@ -9,6 +9,7 @@ A small Next.js project for WeChat and Alipay login and payments.
 - 模拟账号注册、登录、设置余额、买商品、看订单。 / Mock registration, login, editable balances, purchases, and order history.
 - 右上角切换中英文，刷新和换页会保留选择。 / Switch Chinese and English in the header; the choice persists across pages and reloads.
 - 微信或支付宝登录后，都能在结算时选择两种付款方式。支付宝沙箱付款已跑通。 / Either login provider can choose either payment method at checkout. Alipay sandbox payment works.
+- 模拟订单付款后可以全额退款，退回本站余额；不支持支付宝沙箱退款。 / Paid mock orders support full refunds to the local balance; Alipay sandbox refunds are not supported.
 - 付款通知会验签，重复通知不会重复扣款。 / Payment notifications are verified and do not charge twice.
 
 本次交付：需求方已确认取消微信部分，已有模拟功能保留。支付宝使用本站账号登录，沙箱支付已跑通；官方登录卡在会员资料接口，客服反馈沙箱不可用，尚未完成。演示视频待录制。
@@ -34,6 +35,10 @@ Open [localhost:3000](http://localhost:3000). Mock mode needs no provider accoun
 `./start.sh` 与 `npm run dev` 相同。沙箱模式自动启动隧道并同步回调，Ctrl+C 一起关闭；手机测试用 `npm run dev -- --public`。
 
 `./start.sh` and `npm run dev` share the same launcher. Sandbox mode manages the tunnel and callback URLs; Ctrl+C stops both. Use `npm run dev -- --public` for phone testing.
+
+录演示用 `./start.sh --demo`（手机访问加 `--public`）。它先构建再启动，不会因代码热更新反复刷新；改代码后需重启。支付仍使用原来的模拟或沙箱配置。
+
+For demos, use `./start.sh --demo` (add `--public` for phone access). It builds before starting and has no hot reload. Restart after code changes; payment mode stays unchanged.
 
 支付宝沙箱配置见 [接入说明 / Setup](docs/setup.md)。首页选平台，再选模拟或沙箱。沙箱须先在 `.env.local` 配好并重启；模拟入口始终只扣本站余额。
 

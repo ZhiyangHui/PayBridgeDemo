@@ -598,3 +598,49 @@ describe("微信模拟支付接口", () => {
     expect(await db.paymentNotification.count()).toBe(0);
   });
 });
+
+describe("模拟退款表单", () => {
+  it("退款金额只取订单，重复提交不多退，通知不能再次扣款", async () => {
+    const order = await createMockOrder(db, userId, "alipay", randomUUID());
+    const url = `/api/mock/pay/${order.id}`;
+    await simulatePayment(form(url, { action: "pay" }), order.id);
+    const response = await simulatePayment(
+      form(url, { action: "refund", amount: "999999", userId: "other" }),
+      order.id,
+    );
+    expect(response.headers.get("location")).toBe(`${origin}/orders/${order.id}`);
+    await simulatePayment(form(url, { action: "refund" }), order.id);
+    await simulatePayment(form(url, { action: "pay" }), order.id);
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("refunded");
+    expect((await db.mockAccount.findUniqueOrThrow({ where: { userId } })).balanceFen).toBe(100);
+  });
+
+  it("跨站请求和未登录请求不能退款", async () => {
+    const order = await createMockOrder(db, userId, "alipay", randomUUID());
+    const url = `/api/mock/pay/${order.id}`;
+    await simulatePayment(form(url, { action: "pay" }), order.id);
+    const foreign = await simulatePayment(
+      form(url, { action: "refund" }, "https://other.test"),
+      order.id,
+    );
+    expect(foreign.headers.get("location")).toContain("error=FORBIDDEN");
+    browser.token = "";
+    const anonymous = await simulatePayment(form(url, { action: "refund" }), order.id);
+    expect(anonymous.headers.get("location")).toContain("error=UNAUTHENTICATED");
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("paid");
+  });
+
+  it("模拟接口拒绝沙箱订单退款", async () => {
+    const order = await createSandboxOrder(db, userId, randomUUID(), {
+      appId: "test",
+      merchantId: "test",
+    });
+    await db.order.update({ where: { id: order.id }, data: { status: "paid" } });
+    const response = await simulatePayment(
+      form(`/api/mock/pay/${order.id}`, { action: "refund" }),
+      order.id,
+    );
+    expect(response.headers.get("location")).toContain("error=MOCK_ONLY");
+    expect((await db.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("paid");
+  });
+});

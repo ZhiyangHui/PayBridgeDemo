@@ -10,6 +10,7 @@ export const errorDefinitions = {
   INVALID_CREDENTIALS: [400, "账号用 3–24 位字母、数字或下划线，密码用 8–128 位字符"],
   INVALID_AMOUNT: [400, "金额应在 0–1000000 元之间，最多两位小数"],
   INSUFFICIENT_BALANCE: [409, "余额不足，请先调整模拟余额"],
+  REFUND_NOT_ALLOWED: [409, "只有已付款的模拟订单可以退款"],
   PAYMENT_MODE_MISMATCH: [403, "付款方式或环境已变化，请返回结算页重新选择"],
   PAYMENT_UNAVAILABLE: [503, "当前支付方式尚未接入"],
   PAYMENT_PROVIDER_ERROR: [502, "支付平台暂时不可用，订单状态仍待确认，请稍后重试"],

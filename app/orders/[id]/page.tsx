@@ -18,7 +18,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * 显示当前用户的订单金额、支付渠道和数据库中的付款状态。
- * 模拟待付款订单显示确认付款与取消按钮，扫码入口暂不展示。
+ * 模拟订单支持确认、取消及付款后全额退款，扫码入口暂不展示。
  * 微信真实订单显示平台付款码；支付宝沙箱订单提供继续付款入口，两者都轮询服务端状态。
  * 未登录时跳回首页，订单不存在或不属于当前用户时显示 404。
  */
@@ -83,6 +83,12 @@ export default async function OrderDetail({
             <dd>{order.paidAt.toLocaleString(locale, { timeZone: "Asia/Shanghai" })}</dd>
           </>
         )}
+        {order.refundedAt && (
+          <>
+            <dt>{t("退款时间")}</dt>
+            <dd>{order.refundedAt.toLocaleString(locale, { timeZone: "Asia/Shanghai" })}</dd>
+          </>
+        )}
       </dl>
       <FormMessage code={(await searchParams).error} />
       {!matchesSession && order.status === "pending" && (
@@ -93,6 +99,22 @@ export default async function OrderDetail({
       {wallet && (
         <p className={styles.muted}>
           {t("模拟余额 ¥{amount}", { amount: formatMoney(wallet.balanceFen) })}
+        </p>
+      )}
+      {mock && order.status === "paid" && (
+        <details>
+          <summary>{t("模拟退款")}</summary>
+          <p className={styles.muted}>{t("全额退回本站模拟余额，不涉及支付宝沙箱资金。")}</p>
+          <form action={`/api/mock/pay/${order.id}`} method="post">
+            <button className={`${styles.button} ${styles.secondary}`} name="action" value="refund">
+              {t("确认退款 ¥{amount}", { amount: formatMoney(order.amountFen) })}
+            </button>
+          </form>
+        </details>
+      )}
+      {order.mode === "mock" && order.status === "refunded" && (
+        <p className={styles.muted}>
+          {t("¥{amount} 已退回本站模拟余额。", { amount: formatMoney(order.amountFen) })}
         </p>
       )}
       {pending && (

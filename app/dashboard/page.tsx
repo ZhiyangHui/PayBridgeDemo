@@ -62,9 +62,7 @@ export default async function Dashboard({
           <p className={styles.muted}>{t("本站模拟余额")}</p>
           <p className={styles.price}>¥{formatMoney(account.balanceFen)}</p>
           <p className={styles.muted}>
-            {t(
-              "这是本站的模拟余额，不是支付宝沙箱账号余额。调整此金额不会改变沙箱余额，沙箱付款也不会扣除它。",
-            )}
+            {t("仅用于本站模拟付款和退款，不代表微信或支付宝账户余额。")}
           </p>
           {localAlipay && mode === "sandbox" && (
             <p className={styles.muted}>

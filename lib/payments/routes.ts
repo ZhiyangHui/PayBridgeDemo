@@ -11,6 +11,7 @@ import { getMockPaymentKeys } from "./mock-keys";
 import { mockPaymentNotification } from "./mock-provider";
 import { handleMockNotification } from "./handler";
 import { paymentMode, sessionPaymentMode, hasMockPayment } from "./mode";
+import { refundMockOrder } from "../orders/refund";
 import { findProduct } from "../orders/catalog";
 import { createRemoteOrder } from "../orders/remote";
 import { createWechatPayment, handleWechatNotification, wechatPaymentConfig } from "../wechat";
@@ -150,7 +151,7 @@ export async function createPayment(request: NextRequest, provider: LoginProvide
 }
 
 /**
- * 处理当前用户模拟订单的付款或取消操作。
+ * 处理当前用户模拟订单的付款、取消或全额退款。
  * 付款时生成带签名的模拟通知，交给通知处理器验签并扣除模拟余额。
  * @returns 操作完成后跳回订单详情；失败时在详情页显示错误码。
  */
@@ -165,9 +166,11 @@ export async function simulatePayment(request: NextRequest, id: string) {
 
     const action = (await request.formData()).get("action");
 
-    // 取消订单直接更新模拟订单；确认付款则生成签名通知。
+    // 取消与退款由订单模块处理；确认付款生成签名通知。
     if (action === "cancel") {
       await cancelMockOrder(getDb(), session.user.id, id);
+    } else if (action === "refund") {
+      await refundMockOrder(getDb(), session.user.id, id);
     } else if (action === "pay") {
       const keys = getMockPaymentKeys(order.provider, sessionPaymentMode(session, order.provider));
       const notification = mockPaymentNotification(order, keys);

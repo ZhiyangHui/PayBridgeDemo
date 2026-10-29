@@ -27,6 +27,14 @@ async function start() {
 }
 
 describe("订单状态轮询", () => {
+  it("退款也是终态，不继续轮询", async () => {
+    const request = vi.spyOn(globalThis, "fetch").mockResolvedValue(reply("refunded"));
+    await start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(states.at(-1)).toBe("complete");
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("立即查询，待付款继续查，结束后只刷新一次", async () => {
     const request = vi
       .spyOn(globalThis, "fetch")

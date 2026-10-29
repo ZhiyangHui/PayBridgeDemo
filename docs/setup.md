@@ -16,6 +16,14 @@ Mock mode starts only the local app. Sandbox mode starts a Cloudflare tunnel, su
 
 Temporary URLs stay out of `.env.local`; keys are untouched. Current addresses are recorded in the ignored `.local/dev-runtime.json`. Ctrl+C stops both processes. An occupied port fails safely. A tunnel exit or three consecutive failed checks stops the app; run the command again to restart.
 
+日常开发使用 Webpack 热更新。录演示使用 `./start.sh --demo`，手机访问再加 `--public`：构建完成后启动，不运行热更新，修改代码需重启。这不会切换成真实支付。
+
+Development uses Webpack hot reload. For recording, use `./start.sh --demo`, adding `--public` for phone access. It builds first and runs without hot reload; restart after edits. This does not enable live payments.
+
+临时隧道不保证一直在线。短暂断线会提示等待，恢复后提示继续；连续失败才退出。不要靠反复刷新或重复付款解决断线，已付款的订单可以在重启后查单。
+
+Temporary tunnels have no uptime guarantee. Brief outages show a waiting message, followed by a recovery message. Persistent failures stop the session. Do not repeatedly refresh or pay again; check paid orders after restarting.
+
 ## 支付宝沙箱 / Alipay sandbox
 
 先安装 [cloudflared](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)。启动器也能使用已有的 `.local/bin/cloudflared`，不自动下载安装。

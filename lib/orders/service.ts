@@ -124,8 +124,11 @@ export async function settleMockPayment(db: PrismaClient, notice: PaymentNotice)
       throw new AppError("PAYMENT_INVALID");
     }
 
-    // 相同交易已经记账时直接返回，不再次扣余额或写通知。
-    if (order.status === "paid" && order.providerTradeNo === notice.tradeNo) {
+    // 原交易已经支付或退款时忽略重复成功通知，不重新扣款或覆盖退款状态。
+    if (
+      (order.status === "paid" || order.status === "refunded") &&
+      order.providerTradeNo === notice.tradeNo
+    ) {
       return;
     }
 

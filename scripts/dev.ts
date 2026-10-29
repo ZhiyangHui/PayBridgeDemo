@@ -18,12 +18,15 @@ import {
 async function main() {
   const args = process.argv.slice(2);
 
-  if (args.some((arg) => arg !== "--public")) {
-    throw new Error("用法：npm run dev；手机测试使用 npm run dev -- --public。");
+  if (args.some((arg) => !["--public", "--demo"].includes(arg))) {
+    throw new Error(
+      "用法：./start.sh [--demo] [--public]；--demo 用于演示，--public 用于手机访问。",
+    );
   }
 
   const root = process.cwd();
-  nextEnv.loadEnvConfig(root, true);
+  const demo = args.includes("--demo");
+  nextEnv.loadEnvConfig(root, !demo);
   const mode = process.env.PAYMENT_MODE;
   const publicSite = args.includes("--public");
 
@@ -95,11 +98,36 @@ async function main() {
     processes.splice(processes.indexOf(prepare), 1);
 
     // 首次模拟启动可能生成会话密钥，重新读取后再交给 Next.js。
-    nextEnv.loadEnvConfig(root, true, undefined, true);
-    const env: NodeJS.ProcessEnv = { ...process.env, ...overrides };
+    nextEnv.loadEnvConfig(root, !demo, undefined, true);
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...overrides,
+      NODE_ENV: demo ? "production" : "development",
+    };
+
+    // 演示先构建静态资源，运行时不加载热更新客户端。
+    if (demo) {
+      console.log("正在构建演示版本，完成后自动启动……");
+      const build = launch(process.execPath, ["node_modules/next/dist/bin/next", "build"], env);
+      processes.push(build);
+      const result = await Promise.race([
+        build.done,
+        delay(300000, 1, { signal: controller.signal }),
+      ]);
+      controller.signal.throwIfAborted();
+
+      if (result !== 0) {
+        throw new Error("演示构建失败或超时，请查看上方错误。");
+      }
+
+      processes.splice(processes.indexOf(build), 1);
+    }
+
+    // 开发使用 Webpack，避开当前 Turbopack 重复发送整页刷新指令的问题。
+    const command = demo ? ["start"] : ["dev", "--webpack"];
     const app = launch(
       process.execPath,
-      ["node_modules/next/dist/bin/next", "dev", "--hostname", "127.0.0.1", "--port", "3000"],
+      ["node_modules/next/dist/bin/next", ...command, "--hostname", "127.0.0.1", "--port", "3000"],
       env,
     );
     watch(app, "网站服务");
@@ -117,6 +145,7 @@ async function main() {
           pid: process.pid,
           appUrl: env.APP_URL,
           tunnelUrl: origin,
+          demo,
           startedAt: new Date().toISOString(),
         },
         null,
@@ -125,6 +154,12 @@ async function main() {
       { mode: 0o600 },
     );
     console.log(`\n启动完成：${env.APP_URL}\n按 Ctrl+C 同时关闭本次网站和隧道。`);
+
+    if (demo) {
+      console.log(
+        "演示模式：没有代码热更新；修改代码后需要重新启动。支付环境仍由 PAYMENT_MODE 决定。",
+      );
+    }
 
     if (origin) {
       console.log(`支付宝通知：${env.ALIPAY_NOTIFY_URL}\n返回商户：${env.ALIPAY_RETURN_URL}`);

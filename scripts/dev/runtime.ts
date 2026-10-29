@@ -215,12 +215,23 @@ export async function monitorTunnel(
   origin: string,
   signal: AbortSignal,
   intervalMs = 10000,
+  report: (message: string) => void = console.warn,
 ): Promise<void> {
   let failures = 0;
 
   while (!signal.aborted) {
     await delay(intervalMs, undefined, { signal });
-    failures = (await healthy(origin, signal)) ? 0 : failures + 1;
+    const available = await healthy(origin, signal);
+    signal.throwIfAborted();
+
+    // 只报告断线和恢复的时刻，不在每次检查时刷日志。
+    if (!available && failures === 0) {
+      report("公网暂时不可达，正在等待隧道恢复。请暂停付款，不要反复刷新页面。");
+    } else if (available && failures > 0) {
+      report("公网连接已恢复，可以继续测试。");
+    }
+
+    failures = available ? 0 : failures + 1;
 
     if (failures >= 3) {
       throw new Error("隧道持续不可达，已停止开发服务。请重新运行启动命令获取新地址。");

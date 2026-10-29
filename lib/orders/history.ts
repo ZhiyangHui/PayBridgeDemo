@@ -5,6 +5,7 @@ export const HISTORY_FILTERS = [
   { value: "all", label: "全部" },
   { value: "pending", label: "待付款" },
   { value: "paid", label: "已付款" },
+  { value: "refunded", label: "已退款" },
   { value: "closed", label: "已取消" },
   { value: "failed", label: "支付失败" },
 ] as const;

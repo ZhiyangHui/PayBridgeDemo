@@ -48,7 +48,7 @@ export function watchOrder(id: string, update: (state: PollState) => void): () =
         !order ||
         typeof order !== "object" ||
         !("status" in order) ||
-        !["pending", "paid", "closed", "failed"].includes(String(order.status))
+        !["pending", "paid", "closed", "failed", "refunded"].includes(String(order.status))
       ) {
         throw new Error("Invalid order status");
       }

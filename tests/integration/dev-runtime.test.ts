@@ -103,15 +103,25 @@ describe("开发启动与隧道管理", () => {
   it("公网连续失败才停止，一次短暂故障可以恢复", async () => {
     const fetcher = vi.spyOn(globalThis, "fetch");
     const cancel = new AbortController();
+    const report = vi.fn();
 
     try {
       fetcher.mockRejectedValueOnce(new Error("offline"));
       fetcher.mockResolvedValueOnce(new Response(JSON.stringify({ status: "ok", database: "ok" })));
       fetcher.mockRejectedValue(new Error("offline"));
-      const result = monitorTunnel("https://test.trycloudflare.com", cancel.signal, 5).catch(
-        (error) => error,
-      );
+      const result = monitorTunnel(
+        "https://test.trycloudflare.com",
+        cancel.signal,
+        5,
+        report,
+      ).catch((error) => error);
       expect(await result).toMatchObject({ message: expect.stringContaining("持续不可达") });
+      expect(fetcher).toHaveBeenCalledTimes(5);
+      expect(report.mock.calls.map(([message]) => message)).toEqual([
+        expect.stringContaining("暂时不可达"),
+        expect.stringContaining("已恢复"),
+        expect.stringContaining("暂时不可达"),
+      ]);
     } finally {
       cancel.abort();
       vi.restoreAllMocks();
