@@ -91,16 +91,6 @@ If the tunnel goes down, restart the app. If you have already paid, check order 
 
 ## Code and checks
 
-```text
-app/          Pages and API routes
-lib/          Login, payments, orders, sessions, and database logic
-components/   Shared UI components
-styles/       Plain CSS
-prisma/       Database schema and migrations
-scripts/      Startup, configuration checks, and tunnel management
-tests/        Unit and integration tests
-```
-
 `app/api` receives requests, calls `lib`, and returns results. The app uses Next.js App Router, TypeScript in strict mode, Prisma / SQLite, plus Zod, the Alipay SDK, qrcode, and Vitest.
 
 ```bash
@@ -109,4 +99,170 @@ npm run lint          # Check code for lint issues
 npm run typecheck     # Check for type errors
 npm run format:check  # Check code formatting
 npm run build         # Compile and build the project
+```
+
+## Detailed file structure
+
+Main source and configuration files are listed below. Folder READMEs, installed dependencies, and generated files are omitted.
+
+```text
+payBridge Demo/
+├── app/
+│   ├── page.tsx  # Home page and login options
+│   ├── layout.tsx  # Shared page layout
+│   ├── error.tsx  # Page error screen
+│   ├── page.module.css  # Home page styles
+│   ├── login/
+│   │   └── [provider]/
+│   │       └── page.tsx  # Mock or sandbox selection
+│   ├── mock/
+│   │   └── login/
+│   │       └── [provider]/
+│   │           └── page.tsx  # Local registration and login
+│   ├── login-error/
+│   │   └── page.tsx  # Login error screen
+│   ├── dashboard/
+│   │   └── page.tsx  # Store, account, and mock balance
+│   ├── checkout/
+│   │   └── page.tsx  # Checkout and payment methods
+│   ├── orders/
+│   │   ├── page.tsx  # Order history
+│   │   └── [id]/
+│   │       └── page.tsx  # Order details, payment, and mock refunds
+│   └── api/
+│       ├── auth/
+│       │   ├── alipay/
+│       │   │   ├── start/
+│       │   │   │   └── route.ts  # Start Alipay login
+│       │   │   ├── sandbox/
+│       │   │   │   └── start/
+│       │   │   │       └── route.ts  # Sandbox OAuth testing entry
+│       │   │   └── callback/
+│       │   │       └── route.ts  # Alipay login callback
+│       │   ├── wechat/
+│       │   │   ├── start/
+│       │   │   │   └── route.ts  # Start WeChat login
+│       │   │   └── callback/
+│       │   │       └── route.ts  # WeChat login callback
+│       │   └── logout/
+│       │       └── route.ts  # Sign out
+│       ├── pay/
+│       │   ├── alipay/
+│       │   │   ├── create/
+│       │   │   │   └── route.ts  # Create Alipay payment
+│       │   │   ├── notify/
+│       │   │   │   └── route.ts  # Alipay payment notification
+│       │   │   └── return/
+│       │   │       └── route.ts  # Return from Alipay checkout
+│       │   └── wechat/
+│       │       ├── create/
+│       │       │   └── route.ts  # Create WeChat payment
+│       │       └── notify/
+│       │           └── route.ts  # WeChat payment notification
+│       ├── orders/
+│       │   └── [id]/
+│       │       └── route.ts  # Query the user's order status
+│       ├── mock/
+│       │   ├── auth/
+│       │   │   ├── alipay/
+│       │   │   │   └── route.ts  # Alipay mock registration and login
+│       │   │   └── wechat/
+│       │   │       └── route.ts  # WeChat mock registration and login
+│       │   ├── pay/
+│       │   │   └── [id]/
+│       │   │       └── route.ts  # Mock payment, cancellation, and refund
+│       │   └── wallet/
+│       │       └── route.ts  # Edit the local mock balance
+│       └── health/
+│           └── route.ts  # App and database health check
+├── lib/
+│   ├── alipay.ts  # Alipay exports
+│   ├── wechat.ts  # WeChat exports
+│   ├── session.ts  # Session access and cookies
+│   ├── db.ts  # Database connection
+│   ├── db/
+│   │   └── url.ts  # Database file paths
+│   ├── auth/
+│   │   ├── routes.ts  # Login, callback, and logout handling
+│   │   ├── store.ts  # Users, login state, and sessions
+│   │   ├── mock-accounts.ts  # Local accounts, passwords, and balances
+│   │   ├── mock.ts  # Mock login credentials
+│   │   ├── alipay.ts  # Alipay authorization, tokens, and profiles
+│   │   ├── alipay-diagnostics.ts  # Alipay error diagnostics
+│   │   ├── wechat.ts  # WeChat authorization and profiles
+│   │   └── types.ts  # Login types
+│   ├── payments/
+│   │   ├── routes.ts  # Payment request handling
+│   │   ├── alipay.ts  # Alipay sandbox checkout, notifications, and queries
+│   │   ├── notification.ts  # Payment signature and content checks
+│   │   ├── handler.ts  # Mock notification handling
+│   │   ├── mock-provider.ts  # Signed mock notifications
+│   │   ├── mock-keys.ts  # Local test keys
+│   │   ├── mode.ts  # Payment mode selection
+│   │   ├── return.ts  # Payment return handling
+│   │   ├── wechat.ts  # WeChat Native payments, notifications, and queries
+│   │   └── wechat-client.ts  # WeChat request signing and API calls
+│   ├── orders/
+│   │   ├── catalog.ts  # Test products and prices
+│   │   ├── service.ts  # Mock orders, balance deductions, and cancellation
+│   │   ├── sandbox.ts  # Alipay sandbox order storage and updates
+│   │   ├── remote.ts  # Live WeChat order storage and updates
+│   │   ├── history.ts  # Order history and filters
+│   │   ├── refund.ts  # Full mock refunds
+│   │   ├── polling.ts  # Order polling, stopping, and retries
+│   │   ├── status.ts  # Order status labels
+│   │   └── money.ts  # Money formatting and unit conversion
+│   ├── config/
+│   │   ├── env.ts  # Environment configuration checks
+│   │   └── credentials.ts  # Credential format checks
+│   ├── errors/
+│   │   ├── app-error.ts  # Error types and messages
+│   │   └── response.ts  # Error logging and responses
+│   ├── http/
+│   │   └── request.ts  # HTTP requests and timeouts
+│   └── i18n/
+│       ├── messages.ts  # Chinese and English UI text
+│       ├── index.ts  # Language selection and translation
+│       └── server.ts  # Server-side language selection
+├── components/
+│   ├── AccountNav.tsx  # Account navigation
+│   ├── UserAvatar.tsx  # User avatar
+│   ├── PageShell.tsx  # Page shell and title
+│   ├── LanguageProvider.tsx  # Language switching
+│   ├── FormMessage.tsx  # Form error messages
+│   ├── OrderPoller.tsx  # Order polling status and retry button
+│   ├── PageShell.module.css  # Page shell styles
+│   └── shop.module.css  # Store and order styles
+├── styles/
+│   ├── globals.css  # Global styles
+│   └── tokens.css  # Shared colors and spacing
+├── prisma/
+│   ├── schema.prisma  # User, session, and order schema
+│   └── migrations/  # Database migrations
+├── scripts/
+│   ├── dev.ts  # App and tunnel launcher
+│   ├── dev/
+│   │   └── runtime.ts  # Processes, URLs, and connectivity checks
+│   ├── prepare-dev.ts  # Startup preparation and database setup
+│   └── check-env.ts  # Runtime configuration validation
+├── tests/
+│   ├── unit/  # Unit tests for login, configuration, requests, and polling
+│   └── integration/  # Integration tests for login, payments, notifications, refunds, and startup
+├── public/
+│   └── avatars/  # Mock account avatars
+├── docs/
+│   └── setup.md  # Payment and tunnel setup
+├── .env.example  # Example configuration without real keys
+├── .gitignore  # Files excluded from Git
+├── start.sh  # Startup command
+├── package.json  # Dependencies and commands
+├── package-lock.json  # Locked dependency versions
+├── next.config.ts  # Next.js configuration
+├── tsconfig.json  # TypeScript configuration
+├── prisma.config.ts  # Prisma configuration
+├── eslint.config.mjs  # Lint rules
+├── vitest.config.ts  # Test configuration
+├── README.md  # Chinese README
+├── README.en.md  # English README
+└── LICENSE  # MIT license
 ```

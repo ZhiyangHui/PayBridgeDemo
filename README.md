@@ -90,16 +90,6 @@ https://blog.csdn.net/ljw_993013755/article/details/138825736 可以看这个链
 
 ## 代码和检查
 
-```text
-app/          页面和 API 路由
-lib/          登录、支付、订单、会话和数据库逻辑
-components/   共用页面组件
-styles/       原生 CSS
-prisma/       数据表和迁移
-scripts/      启动、配置检查和隧道管理
-tests/        单元测试和流程测试
-```
-
 `app/api` 接收请求，调用 `lib` 处理，再返回结果。使用 Next.js App Router、严格模式 TypeScript、Prisma / SQLite；另外用了 Zod、支付宝 SDK、qrcode 和 Vitest。
 
 ```bash
@@ -110,3 +100,168 @@ npm run format:check：检查代码格式。
 npm run build：编译、打包项目
 ```
 
+## 详细文件结构
+
+下面列出主要代码和配置文件，省略各目录的 README、安装依赖和自动生成文件。
+
+```text
+payBridge Demo/
+├── app/
+│   ├── page.tsx  # 首页，选择登录平台
+│   ├── layout.tsx  # 页面共用布局
+│   ├── error.tsx  # 页面出错时的提示
+│   ├── page.module.css  # 首页样式
+│   ├── login/
+│   │   └── [provider]/
+│   │       └── page.tsx  # 选择模拟或沙箱
+│   ├── mock/
+│   │   └── login/
+│   │       └── [provider]/
+│   │           └── page.tsx  # 本站账号注册和登录
+│   ├── login-error/
+│   │   └── page.tsx  # 登录失败提示
+│   ├── dashboard/
+│   │   └── page.tsx  # 商店、账户和模拟余额
+│   ├── checkout/
+│   │   └── page.tsx  # 商品结算和付款方式
+│   ├── orders/
+│   │   ├── page.tsx  # 历史订单
+│   │   └── [id]/
+│   │       └── page.tsx  # 订单详情、付款和模拟退款
+│   └── api/
+│       ├── auth/
+│       │   ├── alipay/
+│       │   │   ├── start/
+│       │   │   │   └── route.ts  # 开始支付宝登录流程
+│       │   │   ├── sandbox/
+│       │   │   │   └── start/
+│       │   │   │       └── route.ts  # 沙箱 OAuth 调试入口
+│       │   │   └── callback/
+│       │   │       └── route.ts  # 接收支付宝登录回调
+│       │   ├── wechat/
+│       │   │   ├── start/
+│       │   │   │   └── route.ts  # 开始微信登录流程
+│       │   │   └── callback/
+│       │   │       └── route.ts  # 接收微信登录回调
+│       │   └── logout/
+│       │       └── route.ts  # 退出登录
+│       ├── pay/
+│       │   ├── alipay/
+│       │   │   ├── create/
+│       │   │   │   └── route.ts  # 创建支付宝付款订单
+│       │   │   ├── notify/
+│       │   │   │   └── route.ts  # 接收支付宝付款通知
+│       │   │   └── return/
+│       │   │       └── route.ts  # 付款后返回本站
+│       │   └── wechat/
+│       │       ├── create/
+│       │       │   └── route.ts  # 创建微信付款订单
+│       │       └── notify/
+│       │           └── route.ts  # 接收微信付款通知
+│       ├── orders/
+│       │   └── [id]/
+│       │       └── route.ts  # 查询当前用户的订单状态
+│       ├── mock/
+│       │   ├── auth/
+│       │   │   ├── alipay/
+│       │   │   │   └── route.ts  # 支付宝模拟账号注册和登录
+│       │   │   └── wechat/
+│       │   │       └── route.ts  # 微信模拟账号注册和登录
+│       │   ├── pay/
+│       │   │   └── [id]/
+│       │   │       └── route.ts  # 模拟付款、取消和退款
+│       │   └── wallet/
+│       │       └── route.ts  # 调整本站模拟余额
+│       └── health/
+│           └── route.ts  # 检查服务和数据库是否正常
+├── lib/
+│   ├── alipay.ts  # 统一导出支付宝相关功能
+│   ├── wechat.ts  # 统一导出微信相关功能
+│   ├── session.ts  # 读取登录状态、设置和清除 Cookie
+│   ├── db.ts  # 数据库连接
+│   ├── db/
+│   │   └── url.ts  # 处理数据库文件路径
+│   ├── auth/
+│   │   ├── routes.ts  # 处理登录入口、回调和退出
+│   │   ├── store.ts  # 保存用户、登录校验信息和会话
+│   │   ├── mock-accounts.ts  # 本站账号、密码和余额
+│   │   ├── mock.ts  # 生成和检查模拟登录凭据
+│   │   ├── alipay.ts  # 支付宝授权、换令牌和获取资料
+│   │   ├── alipay-diagnostics.ts  # 支付宝接口错误诊断
+│   │   ├── wechat.ts  # 微信授权和获取资料
+│   │   └── types.ts  # 登录相关类型
+│   ├── payments/
+│   │   ├── routes.ts  # 处理下单、通知和模拟付款请求
+│   │   ├── alipay.ts  # 支付宝沙箱收银台、通知和查单
+│   │   ├── notification.ts  # 检查付款通知签名和内容
+│   │   ├── handler.ts  # 处理模拟付款通知
+│   │   ├── mock-provider.ts  # 生成带签名的模拟通知
+│   │   ├── mock-keys.ts  # 生成和读取本地测试密钥
+│   │   ├── mode.ts  # 判断当前使用哪种支付环境
+│   │   ├── return.ts  # 处理付款后返回本站的地址
+│   │   ├── wechat.ts  # 微信 Native 下单、通知和查单
+│   │   └── wechat-client.ts  # 微信支付请求签名和接口调用
+│   ├── orders/
+│   │   ├── catalog.ts  # 测试商品和价格
+│   │   ├── service.ts  # 模拟订单、余额扣减和取消
+│   │   ├── sandbox.ts  # 支付宝沙箱订单保存和状态更新
+│   │   ├── remote.ts  # 微信真实订单保存和状态更新
+│   │   ├── history.ts  # 读取和筛选历史订单
+│   │   ├── refund.ts  # 模拟订单全额退款
+│   │   ├── polling.ts  # 定时查询订单，处理停止和重试
+│   │   ├── status.ts  # 订单状态名称
+│   │   └── money.ts  # 金额格式和元、分转换
+│   ├── config/
+│   │   ├── env.ts  # 读取并检查配置
+│   │   └── credentials.ts  # 检查平台密钥格式
+│   ├── errors/
+│   │   ├── app-error.ts  # 错误类型和提示
+│   │   └── response.ts  # 记录错误并返回接口响应
+│   ├── http/
+│   │   └── request.ts  # 接口请求和超时处理
+│   └── i18n/
+│       ├── messages.ts  # 中英文页面文案
+│       ├── index.ts  # 语言选择和翻译方法
+│       └── server.ts  # 服务端读取当前语言
+├── components/
+│   ├── AccountNav.tsx  # 商店、订单和退出导航
+│   ├── UserAvatar.tsx  # 用户头像
+│   ├── PageShell.tsx  # 页面外框和标题
+│   ├── LanguageProvider.tsx  # 中英文切换
+│   ├── FormMessage.tsx  # 表单错误提示
+│   ├── OrderPoller.tsx  # 订单查询状态和重试按钮
+│   ├── PageShell.module.css  # 页面外框样式
+│   └── shop.module.css  # 商店和订单样式
+├── styles/
+│   ├── globals.css  # 全局样式
+│   └── tokens.css  # 共用颜色、间距等
+├── prisma/
+│   ├── schema.prisma  # 用户、会话、订单等数据表
+│   └── migrations/  # 数据库变更记录
+├── scripts/
+│   ├── dev.ts  # 启动网站和隧道
+│   ├── dev/
+│   │   └── runtime.ts  # 进程管理、地址生成和连通检查
+│   ├── prepare-dev.ts  # 启动前检查配置和准备数据库
+│   └── check-env.ts  # 检查运行配置
+├── tests/
+│   ├── unit/  # 登录、配置、请求和订单查询等单元测试
+│   └── integration/  # 登录、付款、通知、退款和启动流程测试
+├── public/
+│   └── avatars/  # 模拟账号头像
+├── docs/
+│   └── setup.md  # 支付配置和隧道使用说明
+├── .env.example  # 配置示例，不含真实密钥
+├── .gitignore  # 不提交 Git 的文件规则
+├── start.sh  # 项目启动命令
+├── package.json  # 依赖和运行命令
+├── package-lock.json  # 锁定依赖版本
+├── next.config.ts  # Next.js 配置
+├── tsconfig.json  # TypeScript 配置
+├── prisma.config.ts  # Prisma 配置
+├── eslint.config.mjs  # 代码检查规则
+├── vitest.config.ts  # 测试配置
+├── README.md  # 中文说明
+├── README.en.md  # 英文说明
+└── LICENSE  # MIT 开源许可证
+```
