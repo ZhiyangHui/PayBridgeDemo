@@ -1,5 +1,18 @@
 /** 页面英文文案；中文原文作为索引，业务数据不参与翻译。 */
 export const english: Record<string, string> = {
+  "正在查询付款结果…": "Checking payment status…",
+  "付款后会自动更新，也可以手动查询。":
+    "Payment status updates automatically. You can also check manually.",
+  "自动查询已暂停。若已付款，请重新查询，不要重复付款。":
+    "Automatic checks are paused. If you have paid, check again instead of paying twice.",
+  "登录已过期，请重新登录后到历史订单查看结果。":
+    "Your session expired. Sign in again and check your order history.",
+  "无法读取此订单，请返回历史订单。": "This order is unavailable. Return to order history.",
+  "已获取付款结果，正在更新页面…": "Payment result received. Updating the page…",
+  查询付款结果: "Check payment status",
+  真实接入: "Live integration",
+  "本次不做真实接入，保留模拟体验":
+    "Live integration is outside this delivery; mock remains available",
   "登录 payBridge": "Sign in to payBridge",
   "先选登录平台，再选模拟或沙箱。": "Choose a provider, then mock or sandbox.",
   微信登录: "Sign in with WeChat",

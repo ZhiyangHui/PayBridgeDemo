@@ -1,64 +1,58 @@
 "use client";
 
-import { useTranslations } from "@/components/LanguageProvider";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "@/components/LanguageProvider";
+import { watchOrder, type PollState } from "@/lib/orders/polling";
+import styles from "./shop.module.css";
 
-/**
- * 每三秒读取一次订单状态，状态不再是 pending 时刷新页面。
- * 读取失败时显示重试提示并继续轮询，组件卸载时取消请求及定时器。
- * @param id 当前页面所展示的本站订单 ID。
- */
+/** 显示查单进度和手动重试入口，付款状态变化后更新订单详情。 */
 export function OrderPoller({ id }: { id: string }) {
   const { t } = useTranslations();
   const router = useRouter();
-  const [failed, setFailed] = useState(false);
+  const [state, setState] = useState<PollState>("checking");
+  const [attempt, setAttempt] = useState(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-    let timer: ReturnType<typeof setTimeout>;
+  useEffect(
+    () =>
+      watchOrder(id, (next) => {
+        setState(next);
 
-    /** 查询一次订单状态；结束则刷新页面，未结束或请求失败则安排下一轮。 */
-    async function poll() {
-      try {
-        const response = await fetch(`/api/orders/${id}`, {
-          signal: controller.signal,
-          cache: "no-store",
-        });
-
-        if (!response.ok) {
-          throw new Error("读取订单失败");
-        }
-
-        const order = await response.json();
-        setFailed(false);
-
-        // 已付款、失败或关闭时停止轮询，让服务端重新渲染最新订单内容。
-        if (order.status !== "pending") {
+        if (next === "complete") {
           router.refresh();
-
-          return;
         }
-      } catch {
-        if (controller.signal.aborted) {
-          return;
-        }
+      }),
+    [id, router, attempt],
+  );
 
-        setFailed(true);
-      }
+  const messages: Record<PollState, string> = {
+    checking: "正在查询付款结果…",
+    waiting: "付款后会自动更新，也可以手动查询。",
+    retrying: "状态更新失败，正在重试。",
+    paused: "自动查询已暂停。若已付款，请重新查询，不要重复付款。",
+    unauthenticated: "登录已过期，请重新登录后到历史订单查看结果。",
+    missing: "无法读取此订单，请返回历史订单。",
+    complete: "已获取付款结果，正在更新页面…",
+  };
 
-      // 上一次请求结束后再安排下一次查询，避免慢请求相互叠加。
-      timer = setTimeout(poll, 3000);
-    }
-
-    timer = setTimeout(poll, 3000);
-
-    // 离开页面时中止正在进行的查询，并清除尚未执行的轮询。
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-    };
-  }, [id, router]);
-
-  return failed ? <p role="status">{t("状态更新失败，正在重试。")}</p> : null;
+  return (
+    <div className={styles.poller}>
+      <p className={styles.muted} role="status">
+        {t(messages[state])}
+      </p>
+      {state === "unauthenticated" && <Link href="/">{t("返回首页重新登录")}</Link>}
+      {state === "missing" && <Link href="/orders">{t("历史订单")}</Link>}
+      {state !== "unauthenticated" && state !== "missing" && (
+        <button
+          type="button"
+          className={`${styles.button} ${styles.secondary}`}
+          disabled={state === "checking" || state === "complete"}
+          onClick={() => setAttempt((value) => value + 1)}
+        >
+          {t("查询付款结果")}
+        </button>
+      )}
+    </div>
+  );
 }

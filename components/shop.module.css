@@ -227,3 +227,15 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* 付款状态查询和手动重试，与付款按钮分开显示。 */
+.poller {
+  margin-top: 1.25rem;
+}
+.poller p {
+  margin-bottom: 0.75rem;
+}
+.poller button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}

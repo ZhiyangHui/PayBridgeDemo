@@ -11,9 +11,9 @@ A small Next.js project for WeChat and Alipay login and payments.
 - 微信或支付宝登录后，都能在结算时选择两种付款方式。支付宝沙箱付款已跑通。 / Either login provider can choose either payment method at checkout. Alipay sandbox payment works.
 - 付款通知会验签，重复通知不会重复扣款。 / Payment notifications are verified and do not charge twice.
 
-还没完成：支付宝沙箱 OAuth 资料查询、微信真实联调、全新克隆验收和演示视频。当前支付宝配置使用本站模拟账号登录，付款与登录分别处理。
+本次交付：需求方已确认取消微信部分，已有模拟功能保留。支付宝使用本站账号登录，沙箱支付已跑通；官方登录卡在会员资料接口，客服反馈沙箱不可用，尚未完成。演示视频待录制。
 
-Still pending: Alipay sandbox OAuth profile retrieval, live WeChat testing, a fresh-clone check, and the demo video. The current Alipay setup uses a local mock account for login; payment is separate.
+Delivery scope: the requester has dropped WeChat; existing mock features remain. Alipay uses local sign-in and working sandbox payments. Official login is incomplete: profile retrieval fails, and Alipay support reported sandbox unavailability. The demo video is still pending.
 
 ## 跑起来 / Run locally
 
@@ -38,6 +38,18 @@ Open [localhost:3000](http://localhost:3000). Mock mode needs no provider accoun
 支付宝沙箱配置见 [接入说明 / Setup](docs/setup.md)。首页选平台，再选模拟或沙箱。沙箱须先在 `.env.local` 配好并重启；模拟入口始终只扣本站余额。
 
 See the setup guide for Alipay sandbox payments. Choose a provider, then mock or sandbox. Configure sandbox in `.env.local` and restart first. The mock entry always uses the local balance.
+
+## 流程 / Flow
+
+登录：本站注册或登录 → 校验回调 state → 保存会话 → 进入商店。当前演示不代表支付宝官方授权成功。
+
+Login: local registration or sign-in → validate callback state → create session → store. This does not demonstrate official Alipay authorization.
+
+付款：后端按商品价格建单 → 模拟付款或支付宝沙箱收银台 → 验签并核对金额、收款方 → 更新订单。漏通知时查单补回；查询失败可手动重试，不能仅凭浏览器跳转确认付款。
+
+Payment: create a server-priced order → mock or Alipay sandbox checkout → verify signature, amount and merchant → update the order. Status queries recover missed notifications; failed queries can be retried. Browser redirects never confirm payment.
+
+演示顺序见 [演示说明 / Demo guide](docs/demo.md)。
 
 ## 代码在哪 / Where the code lives
 

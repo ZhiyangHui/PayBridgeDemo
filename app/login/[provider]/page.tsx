@@ -18,7 +18,7 @@ export default async function LoginOptions({ params }: { params: Promise<{ provi
 
   const sandboxAvailable = provider === "alipay" && getEnv().PAYMENT_MODE === "sandbox";
   const sandboxHint =
-    provider === "wechat" ? t("暂无可用官方沙箱，尚未接入") : t("请先在本地配置支付宝沙箱");
+    provider === "wechat" ? t("本次不做真实接入，保留模拟体验") : t("请先在本地配置支付宝沙箱");
 
   return (
     <PageShell>
@@ -35,7 +35,7 @@ export default async function LoginOptions({ params }: { params: Promise<{ provi
           </a>
         ) : (
           <button className={styles.loginButton} disabled>
-            {t("沙箱")}
+            {provider === "wechat" ? t("真实接入") : t("沙箱")}
             <span className={styles.buttonHint}>{sandboxHint}</span>
           </button>
         )}

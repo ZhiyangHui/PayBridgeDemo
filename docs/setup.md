@@ -48,13 +48,13 @@ For phone access, use `npm run dev -- --public` and the printed public URL throu
 
 ## 微信 / WeChat
 
-当前使用模拟模式。网站 OAuth 和 API v3 Native 代码已有，缺公司应用和商户凭据，尚未真实联调。拿到凭据后按 `.env.example` 填好，设 `WECHAT_MODE=live`，使用公网模式并配置平台授权回调。
+需求方已确认本次不用做微信。现有模拟功能和接入代码保留，不要求提供微信商户凭据，也不把未联调的真实接口算作已完成。
 
-WeChat currently uses mock mode. Website OAuth and API v3 Native code exist, but live testing awaits company app and merchant credentials. Fill in `.env.example` fields, set `WECHAT_MODE=live`, use public mode, and configure the provider callback before testing.
+The requester has removed WeChat from this delivery. Existing mock features and integration code remain. Merchant credentials are not required; live integration is not claimed as tested.
 
-真实微信付款会扣真钱；支付宝正式付款尚未实现。`PAYMENT_MODE=live` 使用自己的固定站点和回调配置，不创建临时隧道。
+支付宝正式付款未开放；本次只演示模拟付款和支付宝沙箱付款。
 
-Live WeChat payments use real money; live Alipay payment is not implemented. `PAYMENT_MODE=live` uses your fixed site and callback configuration, without a temporary tunnel.
+Live Alipay payments are not enabled. This delivery demonstrates mock and Alipay sandbox payments only.
 
 ## 已打开的旧收银台 / Existing checkout pages
 
